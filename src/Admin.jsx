@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./admin.css";
 
-const roleTabs = { super_admin: ["Overview", "Website content", "Program stories", "Media library", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Program stories", "Media library", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
+const roleTabs = { super_admin: ["Overview", "Website content", "Program stories", "Partners & grants", "Media library", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Program stories", "Media library", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
 const roleLabels = { super_admin: "Super Admin", editor: "Editor", finance: "Finance", viewer: "Viewer" };
 const defaults = {
   tagline: "Empowering People. Transforming Communities.",
@@ -49,6 +49,9 @@ export default function Admin() {
   const [stories, setStories] = useState([]);
   const [storyForm, setStoryForm] = useState({id:"",program:"1",title:"",summary:"",body:"",imageUrl:"",imageAlt:"",caption:"",publishedAt:new Date().toISOString().slice(0,10),published:false});
   const [storyBusy, setStoryBusy] = useState(false);
+  const [partnerships,setPartnerships]=useState([]);
+  const [partnerBusy,setPartnerBusy]=useState(false);
+  const [partnerForm,setPartnerForm]=useState({id:"",partnerName:"",partnerType:"Foundation / charitable trust",title:"",program:"",supportType:"Grant funding",amount:"",currency:"USD",startDate:"",endDate:"",status:"Active",publicDescription:"",internalNotes:"",showPublic:false});
   const tabs = roleTabs[user?.role || "super_admin"] || roleTabs.viewer;
 
   const api = async (path, options = {}) => {
@@ -75,6 +78,11 @@ export default function Admin() {
     catch(err) { setNotice(err.message); }
   };
   useEffect(() => { if (user && tab==="Program stories") loadStories(); }, [user,tab]);
+  const loadPartnerships=async()=>{try{const result=await api("/api/admin/partnerships");setPartnerships(result.partnerships||[]);}catch(err){setNotice(err.message);}};
+  useEffect(()=>{if(user&&tab==="Partners & grants")loadPartnerships();},[user,tab]);
+  const savePartnership=async e=>{e.preventDefault();setPartnerBusy(true);setNotice("");try{const item={...partnerForm,id:partnerForm.id||crypto.randomUUID()};const next=partnerForm.id?partnerships.map(x=>x.id===partnerForm.id?item:x):[item,...partnerships];const result=await api("/api/admin/partnerships",{method:"PUT",body:JSON.stringify({partnerships:next})});setPartnerships(result.partnerships||next);setPartnerForm({id:"",partnerName:"",partnerType:"Foundation / charitable trust",title:"",program:"",supportType:"Grant funding",amount:"",currency:"USD",startDate:"",endDate:"",status:"Active",publicDescription:"",internalNotes:"",showPublic:false});setNotice(item.id&&partnerships.some(x=>x.id===item.id)?"Partnership record updated.":"Partnership record added.");}catch(err){setNotice(err.message);}finally{setPartnerBusy(false);}};
+  const editPartnership=item=>{setPartnerForm({...item});window.scrollTo({top:0,behavior:"smooth"});};
+  const deletePartnership=async id=>{if(!window.confirm("Delete this partner/grant record?"))return;setPartnerBusy(true);try{const next=partnerships.filter(x=>x.id!==id);const result=await api("/api/admin/partnerships",{method:"PUT",body:JSON.stringify({partnerships:next})});setPartnerships(result.partnerships||next);setNotice("Partnership record deleted.");}catch(err){setNotice(err.message);}finally{setPartnerBusy(false);}};
   const uploadStoryImage = async e => {
     const file=e.target.files?.[0]; if(!file) return;
     setStoryBusy(true); setNotice("");
@@ -195,6 +203,31 @@ export default function Admin() {
     </form>
     <h2>Existing program stories ({stories.length})</h2>
     {stories.length===0?<p className="admin-muted">No stories yet. Add your first story above.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Story</th><th>Program</th><th>Status</th><th>Actions</th></tr></thead><tbody>{stories.map(story=><tr key={story.id}><td><b>{story.title}</b><small>{story.publishedAt||"No date"}</small></td><td>{["Food Security","Education","Youth Entrepreneurship","Employment","Community Development","Emergency Relief","Animal Rescue"][Number(story.program)-1]}</td><td>{story.published?"Published":"Draft"}</td><td><div className="story-actions"><button type="button" className="admin-secondary" onClick={()=>editStory(story)}>Edit</button><button type="button" className="admin-danger" onClick={()=>deleteStory(story.id)} disabled={storyBusy}>Delete</button></div></td></tr>)}</tbody></table></div>}
+  </section>}
+  {tab==="Partners & grants" && <section className="admin-panel admin-stories">
+    <p className="admin-intro">Keep an internal register of GDOF grants, institutional partners, sponsorships, programme collaborations and in-kind support. Only records marked for public display appear on the website. Internal notes and funding amounts are never published publicly.</p>
+    <form className="story-editor" onSubmit={savePartnership}>
+      <h2>{partnerForm.id?"Edit partner / grant record":"Add a partner or grant"}</h2>
+      <div className="admin-partner-grid">
+        <label>Partner / funder name<input required maxLength="180" value={partnerForm.partnerName} onChange={e=>setPartnerForm({...partnerForm,partnerName:e.target.value})} placeholder="Organisation, government agency or individual"/></label>
+        <label>Partner type<select value={partnerForm.partnerType} onChange={e=>setPartnerForm({...partnerForm,partnerType:e.target.value})}>{["Government / public institution","Philanthropist / individual donor","Foundation / charitable trust","NGO / nonprofit organisation","Corporate / business","Development agency / multilateral","University / research institution","Community-based organisation","Other"].map(x=><option key={x}>{x}</option>)}</select></label>
+        <label>Grant / partnership / project title<input required maxLength="180" value={partnerForm.title} onChange={e=>setPartnerForm({...partnerForm,title:e.target.value})} placeholder="e.g. Youth enterprise support partnership"/></label>
+        <label>GDOF programme<select value={partnerForm.program} onChange={e=>setPartnerForm({...partnerForm,program:e.target.value})}><option value="">Cross-programme / not specified</option>{["Food Security & Family Support","Education & Bursaries","Youth Entrepreneurship","Employment & Livelihoods","Community Development","Emergency Relief","Animal Rescue & Welfare"].map(x=><option key={x}>{x}</option>)}</select></label>
+        <label>Type of support<select value={partnerForm.supportType} onChange={e=>setPartnerForm({...partnerForm,supportType:e.target.value})}>{["Grant funding","Programme sponsorship","Co-funded project","Implementation partnership","Technical assistance","In-kind support","Research / knowledge partnership","Volunteer collaboration","Other"].map(x=><option key={x}>{x}</option>)}</select></label>
+        <label>Amount / estimated value (internal)<input type="number" min="0" step="0.01" value={partnerForm.amount} onChange={e=>setPartnerForm({...partnerForm,amount:e.target.value})} placeholder="Optional"/></label>
+        <label>Currency<select value={partnerForm.currency} onChange={e=>setPartnerForm({...partnerForm,currency:e.target.value})}>{["USD","KES","EUR","GBP","Other"].map(x=><option key={x}>{x}</option>)}</select></label>
+        <label>Start date<input type="date" value={partnerForm.startDate} onChange={e=>setPartnerForm({...partnerForm,startDate:e.target.value})}/></label>
+        <label>End date / expected completion<input type="date" value={partnerForm.endDate} onChange={e=>setPartnerForm({...partnerForm,endDate:e.target.value})}/></label>
+        <label>Status<select value={partnerForm.status} onChange={e=>setPartnerForm({...partnerForm,status:e.target.value})}>{["Prospective","Under discussion","Application submitted","Awarded / confirmed","Active","Completed","On hold","Declined","Terminated"].map(x=><option key={x}>{x}</option>)}</select></label>
+      </div>
+      <label>Public description<textarea rows="4" maxLength="3000" value={partnerForm.publicDescription} onChange={e=>setPartnerForm({...partnerForm,publicDescription:e.target.value})} placeholder="Describe the confirmed partnership and what it supports. Only use information approved for public sharing."/></label>
+      <label>Internal notes (not public)<textarea rows="3" maxLength="5000" value={partnerForm.internalNotes} onChange={e=>setPartnerForm({...partnerForm,internalNotes:e.target.value})} placeholder="Private administrative notes, follow-ups, reporting requirements, agreement references, etc."/></label>
+      <label className="story-publish"><input type="checkbox" checked={partnerForm.showPublic} onChange={e=>setPartnerForm({...partnerForm,showPublic:e.target.checked})}/> Display this confirmed partnership on the public website</label>
+      <p className="admin-help">Only publish a partner's name, relationship and description after permission and details have been verified. Prospective or unconfirmed discussions should remain private.</p>
+      <div className="story-actions"><button disabled={partnerBusy}>{partnerBusy?"Saving…":partnerForm.id?"Save partnership changes":"Save partner / grant record"}</button>{partnerForm.id&&<button type="button" className="admin-secondary" onClick={()=>setPartnerForm({id:"",partnerName:"",partnerType:"Foundation / charitable trust",title:"",program:"",supportType:"Grant funding",amount:"",currency:"USD",startDate:"",endDate:"",status:"Active",publicDescription:"",internalNotes:"",showPublic:false})}>Cancel edit</button>}</div>
+    </form>
+    <h2>Partner & grant register ({partnerships.length})</h2>
+    {!partnerships.length?<p className="admin-muted">No partner or grant records have been added yet.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Partner / project</th><th>Support</th><th>Duration</th><th>Status</th><th>Website</th><th>Actions</th></tr></thead><tbody>{partnerships.map(item=><tr key={item.id}><td><b>{item.partnerName}</b><small>{item.title}</small></td><td>{item.supportType}<small>{item.program||"Cross-programme"}</small></td><td>{item.startDate||"—"}<small>to {item.endDate||"Open-ended"}</small></td><td>{item.status}</td><td>{item.showPublic?"Public":"Private"}</td><td><div className="story-actions"><button type="button" className="admin-secondary" onClick={()=>editPartnership(item)}>Edit</button><button type="button" className="admin-danger" disabled={partnerBusy} onClick={()=>deletePartnership(item.id)}>Delete</button></div></td></tr>)}</tbody></table></div>}
   </section>}
   {tab==="Media library" && <section className="admin-panel admin-media">
     <p className="admin-intro">Upload and manage approved GDOF photographs. Supported formats: JPG, PNG, WebP and GIF. Maximum file size: 8 MB.</p>
