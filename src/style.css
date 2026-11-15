@@ -31,3 +31,20 @@
 
 /* Grants and partnership page */
 .grants-page{background:#f7f9f6;color:#17324a;min-height:70vh}.grants-hero{padding:76px max(6vw,24px) 66px;background:linear-gradient(120deg,#f2f7f1,#edf2e8);border-bottom:1px solid #e1e9df}.grants-hero h1{font:clamp(42px,6vw,76px)/1.06 Georgia,serif;color:#102d49;max-width:900px;margin:20px 0}.grants-hero h1 em,.grants-copy h2 em{color:#237640}.grants-hero>p{max-width:760px;font-size:16px;line-height:1.8;color:#5e7180}.grants-content{max-width:1200px;margin:auto;padding:58px 6vw 80px;display:grid;grid-template-columns:1fr minmax(320px,.9fr);gap:60px;align-items:start}.grants-copy h2{font:42px/1.12 Georgia,serif;color:#102d49;margin:18px 0}.grants-copy h3{font:22px Georgia;color:#102d49;margin:32px 0 12px}.grants-copy p,.grants-copy li{font-size:14px;line-height:1.85;color:#5e7180}.grants-copy ul{padding-left:20px}.grants-note{border-left:3px solid #c99a2e;padding:12px 16px;background:#fff8e7;font-size:12px!important}.grants-form{background:white;border:1px solid #e0e8e1;padding:28px;box-shadow:0 14px 40px #18334a0c;display:flex;flex-direction:column;gap:14px}.grants-form h2{font:30px Georgia;color:#102d49;margin:0}.grants-form>p{font-size:13px;line-height:1.6;color:#687986;margin:0 0 6px}.grants-form label{display:flex;flex-direction:column;gap:7px;font-size:11px;font-weight:700;color:#334d5e}.grants-form input,.grants-form select,.grants-form textarea{width:100%;padding:12px;border:1px solid #dce5df;background:#fff;color:#142c42;font:13px Arial;border-radius:2px}.grants-form textarea{resize:vertical;line-height:1.6}.grants-form>small{font-size:10px;line-height:1.6;color:#71818a}@media(max-width:760px){.grants-hero{padding:52px 22px}.grants-content{grid-template-columns:1fr;padding:38px 20px 55px;gap:35px}.grants-form{padding:20px}.grants-copy h2{font-size:34px}}
+
+/* Institutional profile and partnership page refinements */
+.profile-link{display:inline-block;margin-top:10px;color:#237640;font-weight:700;text-decoration:underline;text-underline-offset:4px}
+.profile-page{background:#f2f5f2;min-height:70vh;padding:28px 18px 70px;color:#20394c}
+.profile-toolbar{max-width:900px;margin:0 auto 18px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.profile-toolbar>a{color:#237640;font-size:13px;font-weight:700}
+.profile-document{max-width:900px;margin:auto;background:#fff;padding:clamp(28px,6vw,70px);box-shadow:0 12px 40px #1d344012}
+.profile-document h1{font:clamp(34px,5vw,58px)/1.08 Georgia,serif;color:#102d49;margin:22px 0}
+.profile-document h1 em{color:#237640}
+.profile-tagline{font-weight:700;color:#237640;letter-spacing:.04em}
+.profile-lead{font:20px/1.65 Georgia,serif;color:#516879;border-bottom:1px solid #e2e9e3;padding-bottom:25px;margin-bottom:30px}
+.profile-document h2{font:25px Georgia;color:#102d49;margin:30px 0 10px}
+.profile-document p,.profile-document li{font-size:14px;line-height:1.8;color:#586c79}
+.profile-document li{margin:8px 0}
+.profile-foot{border-top:1px solid #e2e9e3;padding-top:18px;font-size:12px!important;font-style:italic}
+@media print{body{background:white!important}.topline,.header,footer,.profile-toolbar{display:none!important}.profile-page{padding:0;background:white}.profile-document{box-shadow:none;max-width:none;padding:0}.profile-document h1{font-size:32pt}.profile-document h2{break-after:avoid}.profile-document li{break-inside:avoid}@page{margin:18mm}}
+@media(max-width:760px){.profile-toolbar{align-items:flex-start;flex-direction:column}.profile-document{padding:25px 20px}}
