@@ -27,7 +27,7 @@ const defaults = {
   program6Title: "Emergency Relief",
   program6Description: "Coordinating responsive assistance for communities affected by emergencies and unexpected hardship.",
   program7Title: "Animal Rescue & Welfare",
-  program7Description: "Providing occasional donations or practical assistance to responsible individuals and community rescuers who care for animals in need, including help with food, veterinary treatment and safe shelter."
+  program7Description: "Providing occasional donations or practical assistance to responsible individuals and community rescuers who care for animals in need, including help with food, veterinary treatment and safe shelter.",
   leader1Name: "Wilson Maira Gikonyo", leader1Role: "Founder & Executive Director",
   leader2Name: "Rachael Maina", leader2Role: "President & Board Chairperson",
   leader3Name: "Mourene Maina", leader3Role: "Treasurer",
