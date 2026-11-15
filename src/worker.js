@@ -128,6 +128,25 @@ export default {
         return json({ok:true});
       } catch(error) { return json({error:error.message||"Unable to submit enquiry."},503); }
     }
+    if (url.pathname === "/api/stripe/webhook" && request.method === "POST") {
+      if (!env.STRIPE_WEBHOOK_SECRET || !env.GDOF_DB) return json({error:"Webhook is not configured."},503);
+      const raw=await request.text(), header=request.headers.get("Stripe-Signature")||"";
+      const parts=Object.fromEntries(header.split(",").map(x=>x.split("=",2)));
+      const timestamp=Number(parts.t);
+      if (!timestamp || Math.abs(Date.now()/1000-timestamp)>300 || !parts.v1) return json({error:"Invalid webhook signature."},400);
+      const key=await crypto.subtle.importKey("raw",enc.encode(env.STRIPE_WEBHOOK_SECRET),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+      const expected=b64(await crypto.subtle.sign("HMAC",key,enc.encode(parts.t+"."+raw)));
+      if (expected!==parts.v1) return json({error:"Invalid webhook signature."},400);
+      let event; try { event=JSON.parse(raw); } catch { return json({error:"Invalid event body."},400); }
+      if (event.type==="checkout.session.completed") {
+        const session=event.data?.object;
+        if (session?.id && session.payment_status==="paid") {
+          await env.GDOF_DB.prepare("INSERT OR IGNORE INTO donations(id,stripe_session_id,donor_email,amount_cents,currency,payment_status) VALUES(?,?,?,?,?,?)")
+            .bind(crypto.randomUUID(),session.id,session.customer_details?.email||session.customer_email||null,Number(session.amount_total||0),String(session.currency||"usd"),session.payment_status).run();
+        }
+      }
+      return json({received:true});
+    }
     if (url.pathname === "/api/create-checkout-session" && request.method === "POST") {
       if (!env.STRIPE_SECRET_KEY) return json({ error: "Donation payments are not configured yet." }, 503);
       let body; try { body = await request.json(); } catch { return json({ error: "Invalid request." }, 400); }
