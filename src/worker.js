@@ -49,7 +49,7 @@ async function bootstrap(env) {
 async function requireAdmin(request, env) {
   const email=await sessionEmail(request,env);
   if (!email) return null;
-  const user=await db(env).prepare("SELECT id,email,active FROM admins WHERE email=?").bind(email).first();
+  const user=await db(env).prepare("SELECT id,email,active,role FROM admins WHERE email=?").bind(email).first();
   return user?.active ? user : null;
 }
 async function adminApi(request, env, url) {
@@ -63,25 +63,29 @@ async function adminApi(request, env, url) {
     if (!user || !user.active || (await passwordHash(password,user.password_salt))!==user.password_hash) return json({error:"Invalid email or password."},401);
     const token=await makeSession(user.email,env.ADMIN_SESSION_SECRET);
     await audit(env,user.email,"admin.login","Administrator signed in");
-    return json({user:{email:user.email}},200,cookie(token));
+    return json({user:{email:user.email,role:user.role||"super_admin"}},200,cookie(token));
   }
   const user=await requireAdmin(request,env);
   if (path==="/api/admin/logout" && method==="POST") return json({ok:true},200,clearCookie);
   if (!user) return json({error:"Please sign in to continue."},401);
   const D=db(env);
-  if (path==="/api/admin/me" && method==="GET") return json({user:{email:user.email}});
+  if (path==="/api/admin/me" && method==="GET") return json({user:{email:user.email,role:user.role||"super_admin"}});
   if (path==="/api/admin/data" && method==="GET") {
-    const [enquiries,donations,admins,rows,auditRows]=await Promise.all([
-      D.prepare("SELECT * FROM enquiries ORDER BY created_at DESC LIMIT 300").all(),
-      D.prepare("SELECT * FROM donations ORDER BY created_at DESC LIMIT 300").all(),
-      D.prepare("SELECT id,email,active,created_at FROM admins ORDER BY created_at ASC").all(),
-      D.prepare("SELECT content_key,content_value FROM site_content").all(),
-      D.prepare("SELECT id,actor_email,action,details,created_at FROM admin_audit_logs ORDER BY created_at DESC LIMIT 200").all().catch(() => ({results:[]}))
+    const role=user.role||"super_admin";
+    const [enquiries,donations,admins,rows,auditRows,enquiryCount,donationCount,adminCount]=await Promise.all([
+      ["super_admin","editor"].includes(role) ? D.prepare("SELECT * FROM enquiries ORDER BY created_at DESC LIMIT 300").all() : Promise.resolve({results:[]}),
+      ["super_admin","finance"].includes(role) ? D.prepare("SELECT * FROM donations ORDER BY created_at DESC LIMIT 300").all() : Promise.resolve({results:[]}),
+      role==="super_admin" ? D.prepare("SELECT id,email,active,role,created_at FROM admins ORDER BY created_at ASC").all() : Promise.resolve({results:[]}),
+      ["super_admin","editor"].includes(role) ? D.prepare("SELECT content_key,content_value FROM site_content").all() : Promise.resolve({results:[]}),
+      role==="super_admin" ? D.prepare("SELECT id,actor_email,action,details,created_at FROM admin_audit_logs ORDER BY created_at DESC LIMIT 200").all().catch(() => ({results:[]})) : Promise.resolve({results:[]}),
+      D.prepare("SELECT COUNT(*) AS count FROM enquiries").first(),
+      D.prepare("SELECT COUNT(*) AS count FROM donations").first(),
+      role==="super_admin" ? D.prepare("SELECT COUNT(*) AS count FROM admins").first() : Promise.resolve({count:null})
     ]);
     const content={}; for (const row of rows.results||[]) content[row.content_key]=row.content_value;
-    return json({enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],auditLogs:auditRows.results||[],content});
+    return json({role,counts:{enquiries:enquiryCount?.count||0,donations:donationCount?.count||0,admins:adminCount?.count??null},enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],auditLogs:auditRows.results||[],content});
   }
-  if (path==="/api/admin/content" && method==="PUT") {
+  if (path==="/api/admin/content" && method==="PUT") {\n    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot edit website content."},403);
     const body=await request.json().catch(()=>({}));
     const allowed=["tagline","about","mission","contactEmail","heroTitleLine1","heroTitleLine2","heroDescription","program1Title","program1Description","program2Title","program2Description","program3Title","program3Description","program4Title","program4Description","program5Title","program5Description","program6Title","program6Description","leader1Name","leader1Role","leader2Name","leader2Role","leader3Name","leader3Role","leader4Name","leader4Role","leader5Name","leader5Role"];
     for (const key of allowed) if (typeof body[key]==="string") await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(key,body[key].slice(0,5000)).run();
@@ -89,27 +93,27 @@ async function adminApi(request, env, url) {
     return json({ok:true});
   }
   const enquiryMatch=path.match(/^\/api\/admin\/enquiries\/([^/]+)$/);
-  if (enquiryMatch && method==="PATCH") {
+  if (enquiryMatch && method==="PATCH") {\n    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage enquiries."},403);
     const body=await request.json().catch(()=>({}));
     if (!["new","in_progress","resolved"].includes(body.status)) return json({error:"Invalid enquiry status."},400);
     await D.prepare("UPDATE enquiries SET status=? WHERE id=?").bind(body.status,enquiryMatch[1]).run();
     await audit(env,user.email,"enquiry.status.updated",`Enquiry ${enquiryMatch[1]} marked ${body.status}`);
     return json({ok:true});
   }
-  if (path==="/api/admin/admins" && method==="POST") {
+  if (path==="/api/admin/admins" && method==="POST") {\n    if ((user.role||"super_admin")!=="super_admin") return json({error:"Only a Super Admin can manage administrator accounts."},403);
     const body=await request.json().catch(()=>({}));
     const email=String(body.email||"").trim().toLowerCase(), password=String(body.password||"");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length<12) return json({error:"Enter a valid email and a password of at least 12 characters."},400);
     const salt=b64(crypto.getRandomValues(new Uint8Array(16))), hash=await passwordHash(password,salt);
-    try { await D.prepare("INSERT INTO admins(id,email,password_hash,password_salt,active) VALUES(?,?,?,?,1)").bind(crypto.randomUUID(),email,hash,salt).run(); }
+    try { await D.prepare("undefined").bind(crypto.randomUUID(),email,hash,salt,role).run(); }
     catch { return json({error:"That administrator email may already exist."},409); }
     await audit(env,user.email,"administrator.created",`Created administrator ${email}`);
     return json({ok:true});
   }
   const adminMatch=path.match(/^\/api\/admin\/admins\/([^/]+)$/);
-  if (adminMatch && method==="PATCH") {
+  if (adminMatch && method==="PATCH") {\n    if ((user.role||"super_admin")!=="super_admin") return json({error:"Only a Super Admin can manage administrator accounts."},403);
     const body=await request.json().catch(()=>({}));
-    if (typeof body.active!=="boolean") return json({error:"Invalid account status."},400);
+    if (typeof body.active!=="boolean" && !["super_admin","editor","finance","viewer"].includes(body.role)) return json({error:"Invalid administrator update."},400);\n    if (body.role && !["super_admin","editor","finance","viewer"].includes(body.role)) return json({error:"Choose a valid administrator role."},400);
     if (adminMatch[1]===user.id && !body.active) return json({error:"You cannot disable your own account."},400);
     await D.prepare("UPDATE admins SET active=? WHERE id=?").bind(body.active?1:0,adminMatch[1]).run();
     await audit(env,user.email,body.active?"administrator.reactivated":"administrator.disabled",`Administrator record ${adminMatch[1]}`);
