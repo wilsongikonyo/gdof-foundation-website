@@ -7,6 +7,7 @@ const defaults = {
   tagline: "Empowering People. Transforming Communities.",
   heroFoot: "A foundation focused on people and lasting progress.", programsIntro: "Our programs are designed around the needs people face and the potential every community holds.", governanceIntro: "GDOF is overseen by its Board of Directors, with day-to-day leadership responsible for implementing board-approved priorities.",
   announcementEnabled: "false", announcementTitle: "", announcementText: "", announcementLinkText: "", announcementLinkUrl: "",
+  adminLoginButtonEnabled: "false",
   resource1Title: "", resource1Description: "", resource1Url: "", resource2Title: "", resource2Description: "", resource2Url: "", resource3Title: "", resource3Description: "", resource3Url: "",
   about: "Global Development and Opportunity Foundation (GDOF) is a Delaware-incorporated nonprofit organization working to advance human wellbeing and sustainable community development.",
   mission: "We believe lasting development begins when people have access to the support, resources and opportunities to shape their own future.",
@@ -170,6 +171,9 @@ export default function Admin() {
     <label>Hero supporting line<input value={data.content.heroFoot||""} onChange={e=>setData({...data,content:{...data.content,heroFoot:e.target.value}})}/></label>
     <label>Programs introduction<textarea rows="2" value={data.content.programsIntro||""} onChange={e=>setData({...data,content:{...data.content,programsIntro:e.target.value}})}/></label>
     <label>Governance introduction<textarea rows="2" value={data.content.governanceIntro||""} onChange={e=>setData({...data,content:{...data.content,governanceIntro:e.target.value}})}/></label>
+    <h2>Admin access link</h2>
+    <p className="admin-help">The administration dashboard remains available at /admin whether or not its public navigation link is displayed.</p>
+    <label><span><input type="checkbox" checked={data.content.adminLoginButtonEnabled==="true"} onChange={e=>setData({...data,content:{...data.content,adminLoginButtonEnabled:e.target.checked?"true":"false"}})}/> Show Admin Login link in the public website navigation</span></label>
     <h2>Homepage announcement</h2>
     <label><span><input type="checkbox" checked={data.content.announcementEnabled==="true"} onChange={e=>setData({...data,content:{...data.content,announcementEnabled:e.target.checked?"true":"false"}})}/> Display announcement banner</span></label>
     <label>Announcement heading<input value={data.content.announcementTitle||""} onChange={e=>setData({...data,content:{...data.content,announcementTitle:e.target.value}})}/></label>
