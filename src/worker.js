@@ -59,7 +59,7 @@ async function adminApi(request, env, url) {
     if (!env.ADMIN_SESSION_SECRET) return json({error:"Admin session secret is not configured."},503);
     const body=await request.json().catch(()=>({}));
     const email=String(body.email||"").trim().toLowerCase(), password=String(body.password||"");
-    const user=await db(env).prepare("SELECT id,email,password_hash,password_salt,active FROM admins WHERE email=?").bind(email).first();
+    const user=await db(env).prepare("SELECT id,email,password_hash,password_salt,active,role FROM admins WHERE email=?").bind(email).first();
     if (!user || !user.active || (await passwordHash(password,user.password_salt))!==user.password_hash) return json({error:"Invalid email or password."},401);
     const token=await makeSession(user.email,env.ADMIN_SESSION_SECRET);
     await audit(env,user.email,"admin.login","Administrator signed in");
@@ -123,6 +123,13 @@ async function adminApi(request, env, url) {
     if (body.role && !["super_admin","editor","finance","viewer"].includes(body.role)) return json({error:"Choose a valid administrator role."},400);
     if (adminMatch[1]===user.id && body.active===false) return json({error:"You cannot disable your own account."},400);
     if (adminMatch[1]===user.id && body.role && body.role!=="super_admin") return json({error:"You cannot remove your own Super Admin role."},400);
+    const target = await D.prepare("SELECT id,active,role FROM admins WHERE id=?").bind(adminMatch[1]).first();
+    if (!target) return json({error:"Administrator account not found."},404);
+    const removesSuperAdmin = (target.active && body.active===false && target.role==="super_admin") || (body.role && body.role!=="super_admin" && target.role==="super_admin");
+    if (removesSuperAdmin) {
+      const remaining = await D.prepare("SELECT COUNT(*) AS count FROM admins WHERE active=1 AND role='super_admin' AND id<>?").bind(adminMatch[1]).first();
+      if ((remaining?.count||0) < 1) return json({error:"You cannot disable or demote the last active Super Admin. Promote another administrator first."},400);
+    }
     if (typeof body.active==="boolean") await D.prepare("UPDATE admins SET active=? WHERE id=?").bind(body.active?1:0,adminMatch[1]).run();
     if (body.role) await D.prepare("UPDATE admins SET role=? WHERE id=?").bind(body.role,adminMatch[1]).run();
     const action=body.role?"administrator.role.updated":body.active?"administrator.reactivated":"administrator.disabled";
