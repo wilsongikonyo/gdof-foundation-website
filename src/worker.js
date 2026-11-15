@@ -110,6 +110,14 @@ export default {
       try { return await adminApi(request,env,url); }
       catch (error) { return json({error:error.message||"Admin service unavailable."},503); }
     }
+    if (url.pathname === "/api/public-content" && request.method === "GET") {
+      if (!env.GDOF_DB) return json({});
+      try {
+        const rows=await env.GDOF_DB.prepare("SELECT content_key,content_value FROM site_content").all();
+        const content={}; for (const row of rows.results||[]) content[row.content_key]=row.content_value;
+        return json(content);
+      } catch { return json({}); }
+    }
     if (url.pathname === "/api/contact" && request.method === "POST") {
       try {
         const D=db(env), body=await request.json();
