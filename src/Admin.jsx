@@ -27,7 +27,7 @@ const defaults = {
   program6Title: "Emergency Relief",
   program6Description: "Coordinating responsive assistance for communities affected by emergencies and unexpected hardship.",
   program7Title: "Animal Rescue & Welfare",
-  program7Description: "Supporting responsible animal rescuers and community members who provide care, food, veterinary assistance and safe shelter to animals in need."
+  program7Description: "Providing occasional donations or practical assistance to responsible individuals and community rescuers who care for animals in need, including help with food, veterinary treatment and safe shelter."
   leader1Name: "Wilson Maira Gikonyo", leader1Role: "Founder & Executive Director",
   leader2Name: "Rachael Maina", leader2Role: "President & Board Chairperson",
   leader3Name: "Mourene Maina", leader3Role: "Treasurer",
@@ -171,7 +171,7 @@ export default function Admin() {
     <h2>Public documents and resources</h2>
     <p className="admin-help">Paste public HTTPS links to approved policies, annual reports or other documents hosted securely.</p>
     {[1,2,3].map(i=><div className="admin-content-group" key={i}><h3>Resource {i}</h3><label>Title<input value={data.content["resource"+i+"Title"]||""} onChange={e=>setData({...data,content:{...data.content,["resource"+i+"Title"]:e.target.value}})}/></label><label>Description<input value={data.content["resource"+i+"Description"]||""} onChange={e=>setData({...data,content:{...data.content,["resource"+i+"Description"]:e.target.value}})}/></label><label>Public URL<input type="url" value={data.content["resource"+i+"Url"]||""} onChange={e=>setData({...data,content:{...data.content,["resource"+i+"Url"]:e.target.value}})}/></label></div>)}
-    <h2>Our six programs</h2>
+    <h2>Our seven programs</h2>
     {[1,2,3,4,5,6,7].map(i=><div className="admin-content-group" key={i}><h3>Program {String(i).padStart(2,"0")}</h3><label>Program title<input value={data.content["program"+i+"Title"]||""} onChange={e=>setData({...data,content:{...data.content,["program"+i+"Title"]:e.target.value}})}/></label><label>Program description<textarea rows="3" value={data.content["program"+i+"Description"]||""} onChange={e=>setData({...data,content:{...data.content,["program"+i+"Description"]:e.target.value}})}/></label></div>)}
     <h2>Leadership and board profiles</h2>
     {[1,2,3,4,5].map(i=><div className="admin-content-group" key={i}><h3>Board member {i}</h3><label>Full name<input value={data.content["leader"+i+"Name"]||""} onChange={e=>setData({...data,content:{...data.content,["leader"+i+"Name"]:e.target.value}})}/></label><label>Position / role<input value={data.content["leader"+i+"Role"]||""} onChange={e=>setData({...data,content:{...data.content,["leader"+i+"Role"]:e.target.value}})}/></label></div>)}
