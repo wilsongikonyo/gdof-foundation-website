@@ -48,3 +48,8 @@
 .profile-foot{border-top:1px solid #e2e9e3;padding-top:18px;font-size:12px!important;font-style:italic}
 @media print{body{background:white!important}.topline,.header,footer,.profile-toolbar{display:none!important}.profile-page{padding:0;background:white}.profile-document{box-shadow:none;max-width:none;padding:0}.profile-document h1{font-size:32pt}.profile-document h2{break-after:avoid}.profile-document li{break-inside:avoid}@page{margin:18mm}}
 @media(max-width:760px){.profile-toolbar{align-items:flex-start;flex-direction:column}.profile-document{padding:25px 20px}}
+
+
+.ai-draft-button{align-self:flex-start;border:1px solid #247644;background:#f1f7f1;color:#176438;padding:12px 16px;font-size:12px;font-weight:700;cursor:pointer;border-radius:3px}
+.ai-draft-button:hover{background:#e5f0e6}
+.grants-form .ai-draft-note{font-size:11px;line-height:1.65;color:#687986;margin-top:-7px}
