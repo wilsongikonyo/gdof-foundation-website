@@ -21,3 +21,5 @@
 .story-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .story-actions>button:not(.admin-secondary):not(.admin-danger){border:0;background:#1f733c;color:white;padding:11px 16px;font-weight:bold;cursor:pointer}
 .story-actions>button:disabled{opacity:.55}
+
+.admin-partner-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.admin-partner-grid label{display:flex;flex-direction:column;gap:6px}.admin-partner-grid input,.admin-partner-grid select{width:100%}@media(max-width:700px){.admin-partner-grid{grid-template-columns:1fr}}
