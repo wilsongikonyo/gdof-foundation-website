@@ -85,7 +85,8 @@ async function adminApi(request, env, url) {
     const content={}; for (const row of rows.results||[]) content[row.content_key]=row.content_value;
     return json({role,counts:{enquiries:enquiryCount?.count||0,donations:donationCount?.count||0,admins:adminCount?.count??null},enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],auditLogs:auditRows.results||[],content});
   }
-  if (path==="/api/admin/content" && method==="PUT") {\n    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot edit website content."},403);
+  if (path==="/api/admin/content" && method==="PUT") {
+    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot edit website content."},403);
     const body=await request.json().catch(()=>({}));
     const allowed=["tagline","about","mission","contactEmail","heroTitleLine1","heroTitleLine2","heroDescription","program1Title","program1Description","program2Title","program2Description","program3Title","program3Description","program4Title","program4Description","program5Title","program5Description","program6Title","program6Description","leader1Name","leader1Role","leader2Name","leader2Role","leader3Name","leader3Role","leader4Name","leader4Role","leader5Name","leader5Role"];
     for (const key of allowed) if (typeof body[key]==="string") await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(key,body[key].slice(0,5000)).run();
@@ -93,27 +94,33 @@ async function adminApi(request, env, url) {
     return json({ok:true});
   }
   const enquiryMatch=path.match(/^\/api\/admin\/enquiries\/([^/]+)$/);
-  if (enquiryMatch && method==="PATCH") {\n    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage enquiries."},403);
+  if (enquiryMatch && method==="PATCH") {
+    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage enquiries."},403);
     const body=await request.json().catch(()=>({}));
     if (!["new","in_progress","resolved"].includes(body.status)) return json({error:"Invalid enquiry status."},400);
     await D.prepare("UPDATE enquiries SET status=? WHERE id=?").bind(body.status,enquiryMatch[1]).run();
     await audit(env,user.email,"enquiry.status.updated",`Enquiry ${enquiryMatch[1]} marked ${body.status}`);
     return json({ok:true});
   }
-  if (path==="/api/admin/admins" && method==="POST") {\n    if ((user.role||"super_admin")!=="super_admin") return json({error:"Only a Super Admin can manage administrator accounts."},403);
+  if (path==="/api/admin/admins" && method==="POST") {
+    if ((user.role||"super_admin")!=="super_admin") return json({error:"Only a Super Admin can manage administrator accounts."},403);
     const body=await request.json().catch(()=>({}));
     const email=String(body.email||"").trim().toLowerCase(), password=String(body.password||"");
+    const role=String(body.role||"viewer");
+    if (!["super_admin","editor","finance","viewer"].includes(role)) return json({error:"Choose a valid administrator role."},400);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length<12) return json({error:"Enter a valid email and a password of at least 12 characters."},400);
     const salt=b64(crypto.getRandomValues(new Uint8Array(16))), hash=await passwordHash(password,salt);
-    try { await D.prepare("undefined").bind(crypto.randomUUID(),email,hash,salt,role).run(); }
+    try { await D.prepare("INSERT INTO admins(id,email,password_hash,password_salt,active,role) VALUES(?,?,?,?,1,?)").bind(crypto.randomUUID(),email,hash,salt,role).run(); }
     catch { return json({error:"That administrator email may already exist."},409); }
     await audit(env,user.email,"administrator.created",`Created administrator ${email}`);
     return json({ok:true});
   }
   const adminMatch=path.match(/^\/api\/admin\/admins\/([^/]+)$/);
-  if (adminMatch && method==="PATCH") {\n    if ((user.role||"super_admin")!=="super_admin") return json({error:"Only a Super Admin can manage administrator accounts."},403);
+  if (adminMatch && method==="PATCH") {
+    if ((user.role||"super_admin")!=="super_admin") return json({error:"Only a Super Admin can manage administrator accounts."},403);
     const body=await request.json().catch(()=>({}));
-    if (typeof body.active!=="boolean" && !["super_admin","editor","finance","viewer"].includes(body.role)) return json({error:"Invalid administrator update."},400);\n    if (body.role && !["super_admin","editor","finance","viewer"].includes(body.role)) return json({error:"Choose a valid administrator role."},400);
+    if (typeof body.active!=="boolean" && !["super_admin","editor","finance","viewer"].includes(body.role)) return json({error:"Invalid administrator update."},400);
+    if (body.role && !["super_admin","editor","finance","viewer"].includes(body.role)) return json({error:"Choose a valid administrator role."},400);
     if (adminMatch[1]===user.id && !body.active) return json({error:"You cannot disable your own account."},400);
     await D.prepare("UPDATE admins SET active=? WHERE id=?").bind(body.active?1:0,adminMatch[1]).run();
     await audit(env,user.email,body.active?"administrator.reactivated":"administrator.disabled",`Administrator record ${adminMatch[1]}`);
