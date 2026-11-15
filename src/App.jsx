@@ -7,7 +7,7 @@ const defaultPrograms = [
   ["04","Employment & Livelihoods","Helping people overcome barriers to work and build stable livelihoods through practical opportunity and support.","Economic opportunity","⌁"],
   ["05","Community Development","Working with communities and partners on locally relevant initiatives that strengthen resilience and wellbeing.","Stronger communities","◎"],
   ["06","Emergency Relief","Coordinating responsive assistance for communities affected by emergencies and unexpected hardship.","Responsive support","＋"],
-  ["07","Animal Rescue & Welfare","Supporting responsible animal rescuers and community members who provide care, food, veterinary assistance and safe shelter to animals in need.","Compassion for animals","♡"]
+  ["07","Animal Rescue & Welfare","Providing occasional donations or practical assistance to responsible individuals and community rescuers who care for animals in need, including help with food, veterinary treatment and safe shelter.","Compassion for animals","♡"]
 ];
 const defaultLeaders = [
   ["Wilson Maira Gikonyo","Founder & Executive Director"],
