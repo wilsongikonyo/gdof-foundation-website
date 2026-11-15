@@ -3,6 +3,13 @@
   "name": "gdof-foundation-website",
   "main": "./src/worker.js",
   "compatibility_date": "2026-11-15",
+  "d1_databases": [
+    {
+      "binding": "GDOF_DB",
+      "database_name": "gdof-admin-db",
+      "database_id": "9aefe29e-2bdc-465f-8417-fa7350d2370e"
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
