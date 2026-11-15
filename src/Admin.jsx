@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./admin.css";
 
-const roleTabs = { super_admin: ["Overview", "Website content", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
+const roleTabs = { super_admin: ["Overview", "Website content", "Media library", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Media library", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
 const roleLabels = { super_admin: "Super Admin", editor: "Editor", finance: "Finance", viewer: "Viewer" };
 const defaults = {
   tagline: "Empowering People. Transforming Communities.",
@@ -42,6 +42,8 @@ export default function Admin() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [newAdmin, setNewAdmin] = useState({ email: "", password: "", role: "editor" });
+  const [mediaFiles, setMediaFiles] = useState([]);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const tabs = roleTabs[user?.role || "super_admin"] || roleTabs.viewer;
 
   const api = async (path, options = {}) => {
@@ -56,6 +58,36 @@ export default function Admin() {
   };
   useEffect(() => { api("/api/admin/me").then(r => { setUser(r.user); return refresh(); }).catch(() => {}); }, []);
 
+  const loadMedia = async () => {
+    setMediaBusy(true);
+    try { const result=await api("/api/admin/media"); setMediaFiles(result.files||[]); }
+    catch(err) { setNotice(err.message); }
+    finally { setMediaBusy(false); }
+  };
+  useEffect(() => { if (user && tab==="Media library") loadMedia(); }, [user,tab]);
+  const uploadMedia = async e => {
+    const file=e.target.files?.[0]; if(!file) return;
+    setMediaBusy(true); setNotice("");
+    try {
+      const form=new FormData(); form.append("file",file);
+      const response=await fetch("/api/admin/media",{method:"POST",credentials:"same-origin",body:form});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(result.error||"Image upload failed.");
+      await loadMedia(); setNotice("Image uploaded successfully.");
+    } catch(err) { setNotice(err.message); }
+    finally { setMediaBusy(false); e.target.value=""; }
+  };
+  const deleteMedia = async key => {
+    if(!window.confirm("Delete this image permanently? Any page using its URL will no longer display it.")) return;
+    setMediaBusy(true); setNotice("");
+    try {
+      const response=await fetch("/api/admin/media/"+key.split("/").map(encodeURIComponent).join("/"),{method:"DELETE",credentials:"same-origin"});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(result.error||"Could not delete image.");
+      setMediaFiles(files=>files.filter(file=>file.key!==key)); setNotice("Image deleted.");
+    } catch(err) { setNotice(err.message); }
+    finally { setMediaBusy(false); }
+  };
   const login = async e => {
     e.preventDefault(); setBusy(true); setNotice("");
     try { const r = await api("/api/admin/login", { method: "POST", body: JSON.stringify({ email, password }) }); setUser(r.user); setPassword(""); await refresh(); }
@@ -105,6 +137,13 @@ export default function Admin() {
     <button disabled={busy}>{busy?"Saving…":"Save and publish website content"}</button>
     <p className="admin-help">Changes are stored in the GDOF database and displayed on the public homepage after saving. Images and the remaining design sections are not yet editable here.</p>
   </form>}
+  {tab==="Media library" && <section className="admin-panel admin-media">
+    <p className="admin-intro">Upload and manage approved GDOF photographs. Supported formats: JPG, PNG, WebP and GIF. Maximum file size: 8 MB.</p>
+    <div className="media-upload"><label className="media-upload-button">＋ Upload image<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={uploadMedia} disabled={mediaBusy}/></label><button className="admin-secondary" type="button" onClick={loadMedia} disabled={mediaBusy}>Refresh library</button><span>{mediaFiles.length} image{mediaFiles.length===1?"":"s"}</span></div>
+    {mediaBusy&&<p className="admin-muted">Working…</p>}
+    {!mediaBusy&&mediaFiles.length===0?<p className="admin-muted">No images uploaded yet. Upload your first GDOF photograph to get started.</p>:<div className="media-grid">{mediaFiles.map(file=><article className="media-card" key={file.key}><a href={file.url} target="_blank" rel="noreferrer"><img src={file.url} alt="GDOF media" loading="lazy"/></a><small>{file.key.split("/").pop()}</small><div><button type="button" className="admin-secondary" onClick={()=>{navigator.clipboard?.writeText(new URL(file.url,window.location.origin).href);setNotice("Image URL copied.");}}>Copy URL</button><button type="button" className="admin-danger" onClick={()=>deleteMedia(file.key)} disabled={mediaBusy}>Delete</button></div></article>)}</div>}
+    <p className="admin-help">Uploaded images are stored privately in the GDOF R2 bucket and delivered through the website. Deleting an image breaks any page or document that uses its URL.</p>
+  </section>}
   {tab==="Enquiries" && <section className="admin-panel"><h2>Contact submissions</h2>{data.enquiries.length===0?<p className="admin-muted">No enquiries have been received yet.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Received</th><th>Sender</th><th>Subject / message</th><th>Status</th></tr></thead><tbody>{data.enquiries.map(x=><tr key={x.id}><td>{new Date(x.created_at).toLocaleString()}</td><td><b>{x.name}</b><small>{x.email}</small></td><td><b>{x.subject}</b><p>{x.message}</p></td><td><select value={x.status} onChange={e=>setMessageStatus(x.id,e.target.value)}><option value="new">New</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></td></tr>)}</tbody></table></div>}</section>}
   {tab==="Donations" && <section className="admin-panel"><h2>Donation records</h2><p className="admin-muted">Only payments confirmed by Stripe's signed webhook should be recorded here.</p>{data.donations.length===0?<p>No confirmed donations are recorded yet.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Date</th><th>Donor email</th><th>Amount</th><th>Payment status</th></tr></thead><tbody>{data.donations.map(x=><tr key={x.id}><td>{new Date(x.created_at).toLocaleString()}</td><td>{x.donor_email||"Not provided"}</td><td>{(x.amount_cents/100).toFixed(2)} {x.currency.toUpperCase()}</td><td>{x.payment_status}</td></tr>)}</tbody></table></div>}</section>}
   {tab==="Audit log" && <section className="admin-panel"><h2>Recent administrative activity</h2><p className="admin-muted">A record of important actions performed in the administration system.</p>{!data.auditLogs?.length?<p>No activity has been recorded yet.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Details</th></tr></thead><tbody>{data.auditLogs.map(x=><tr key={x.id}><td>{new Date(x.created_at+"Z").toLocaleString()}</td><td>{x.actor_email}</td><td><b>{x.action}</b></td><td>{x.details||"—"}</td></tr>)}</tbody></table></div>}</section>}
