@@ -5,8 +5,12 @@ const b64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace
 const fromB64 = value => Uint8Array.from(atob(value.replace(/-/g,"+").replace(/_/g,"/")), c => c.charCodeAt(0));
 const db = env => { if (!env.GDOF_DB) throw new Error("Admin database is not configured. Create the GDOF D1 database and add the GDOF_DB binding."); return env.GDOF_DB; };
 async function audit(env, actor, action, details = "") {
-  await db(env).prepare("INSERT INTO admin_audit_logs(id,actor_email,action,details) VALUES(?,?,?,?)")
-    .bind(crypto.randomUUID(), actor, action, String(details).slice(0,500)).run();
+  try {
+    await db(env).prepare("INSERT INTO admin_audit_logs(id,actor_email,action,details) VALUES(?,?,?,?)")
+      .bind(crypto.randomUUID(), actor, action, String(details).slice(0,500)).run();
+  } catch (error) {
+    console.error("Audit log write failed; apply the admin audit log database migration.", error);
+  }
 }
 async function passwordHash(password, salt) {
   const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
@@ -72,7 +76,7 @@ async function adminApi(request, env, url) {
       D.prepare("SELECT * FROM donations ORDER BY created_at DESC LIMIT 300").all(),
       D.prepare("SELECT id,email,active,created_at FROM admins ORDER BY created_at ASC").all(),
       D.prepare("SELECT content_key,content_value FROM site_content").all(),
-      D.prepare("SELECT id,actor_email,action,details,created_at FROM admin_audit_logs ORDER BY created_at DESC LIMIT 200").all()
+      D.prepare("SELECT id,actor_email,action,details,created_at FROM admin_audit_logs ORDER BY created_at DESC LIMIT 200").all().catch(() => ({results:[]}))
     ]);
     const content={}; for (const row of rows.results||[]) content[row.content_key]=row.content_value;
     return json({enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],auditLogs:auditRows.results||[],content});
