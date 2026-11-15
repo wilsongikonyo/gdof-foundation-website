@@ -115,12 +115,12 @@ async function adminApi(request, env, url) {
     await audit(env,user.email,"media.uploaded",key);
     return json({file:{key,url:"/media/"+key.split("/").map(encodeURIComponent).join("/"),size:file.size}});
   }
-  const mediaDelete = path.match(/^\\/api\\/admin\\/media\\/(.+)$/);
+  const mediaDelete = path.match(/^\/api\/admin\/media\/(.+)$/);
   if (mediaDelete && method==="DELETE") {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot delete media."},403);
     if (!env.GDOF_MEDIA) return json({error:"Media storage is not configured."},503);
     let key; try { key=decodeURIComponent(mediaDelete[1]); } catch { return json({error:"Invalid media key."},400); }
-    if (!key.startsWith("uploads/") || key.includes("..") || key.includes("\\\\")) return json({error:"Invalid media key."},400);
+    if (!key.startsWith("uploads/") || key.includes("..") || key.includes("\\")) return json({error:"Invalid media key."},400);
     await env.GDOF_MEDIA.delete(key);
     await audit(env,user.email,"media.deleted",key);
     return json({ok:true});
@@ -188,7 +188,7 @@ export default {
     if (url.pathname.startsWith("/media/") && request.method === "GET") {
       if (!env.GDOF_MEDIA) return new Response("Media storage is not configured.",{status:503});
       let key; try { key=url.pathname.slice("/media/".length).split("/").map(decodeURIComponent).join("/"); } catch { return new Response("Invalid media path.",{status:400}); }
-      if (!key.startsWith("uploads/") || key.includes("..") || key.includes("\\\\")) return new Response("Not found.",{status:404});
+      if (!key.startsWith("uploads/") || key.includes("..") || key.includes("\\")) return new Response("Not found.",{status:404});
       const object=await env.GDOF_MEDIA.get(key);
       if (!object) return new Response("Not found.",{status:404});
       const headers=new Headers();
