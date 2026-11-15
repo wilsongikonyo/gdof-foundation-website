@@ -82,7 +82,7 @@ async function adminApi(request, env, url) {
       D.prepare("SELECT COUNT(*) AS count FROM donations").first(),
       role==="super_admin" ? D.prepare("SELECT COUNT(*) AS count FROM admins").first() : Promise.resolve({count:null})
     ]);
-    const content={}; for (const row of rows.results||[]) content[row.content_key]=row.content_value;
+    const content={}; for (const row of rows.results||[]) if (row.content_key!=="program_stories") content[row.content_key]=row.content_value;
     return json({role,counts:{enquiries:enquiryCount?.count||0,donations:donationCount?.count||0,admins:adminCount?.count??null},enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],auditLogs:auditRows.results||[],content});
   }
   if (path==="/api/admin/stories" && method==="GET") {
