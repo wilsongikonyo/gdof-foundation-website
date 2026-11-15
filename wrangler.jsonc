@@ -10,6 +10,12 @@
       "database_id": "9aefe29e-2bdc-465f-8417-fa7350d2370e"
     }
   ],
+  "r2_buckets": [
+    {
+      "binding": "GDOF_MEDIA",
+      "bucket_name": "gdof-media"
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
