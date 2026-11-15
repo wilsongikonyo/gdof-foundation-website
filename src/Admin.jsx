@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./admin.css";
 
-const tabs = ["Overview", "Website content", "Enquiries", "Donations", "Administrators"];
+const tabs = ["Overview", "Website content", "Enquiries", "Donations", "Administrators", "Audit log"];
 const defaults = {
   tagline: "Empowering People. Transforming Communities.",
   about: "Global Development and Opportunity Foundation (GDOF) is a Delaware-incorporated nonprofit organization working to advance human wellbeing and sustainable community development.",
@@ -34,7 +34,7 @@ export default function Admin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tab, setTab] = useState("Overview");
-  const [data, setData] = useState({ enquiries: [], donations: [], admins: [], content: defaults });
+  const [data, setData] = useState({ enquiries: [], donations: [], admins: [], auditLogs: [], content: defaults });
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [newAdmin, setNewAdmin] = useState({ email: "", password: "" });
@@ -56,7 +56,7 @@ export default function Admin() {
     try { const r = await api("/api/admin/login", { method: "POST", body: JSON.stringify({ email, password }) }); setUser(r.user); setPassword(""); await refresh(); }
     catch (err) { setNotice(err.message); } finally { setBusy(false); }
   };
-  const logout = async () => { await api("/api/admin/logout", { method: "POST", body: "{}" }).catch(() => {}); setUser(null); setData({ enquiries: [], donations: [], admins: [], content: defaults }); };
+  const logout = async () => { await api("/api/admin/logout", { method: "POST", body: "{}" }).catch(() => {}); setUser(null); setData({ enquiries: [], donations: [], admins: [], auditLogs: [], content: defaults }); };
   const saveContent = async e => { e.preventDefault(); setBusy(true); setNotice(""); try { await api("/api/admin/content", { method: "PUT", body: JSON.stringify(data.content) }); setNotice("Website content saved."); } catch (err) { setNotice(err.message); } finally { setBusy(false); } };
   const setMessageStatus = async (id, status) => { try { await api("/api/admin/enquiries/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify({ status }) }); await refresh(); } catch (err) { setNotice(err.message); } };
   const addAdmin = async e => { e.preventDefault(); setBusy(true); try { await api("/api/admin/admins", { method: "POST", body: JSON.stringify(newAdmin) }); setNewAdmin({ email: "", password: "" }); await refresh(); setNotice("Administrator added."); } catch (err) { setNotice(err.message); } finally { setBusy(false); } };
@@ -87,6 +87,7 @@ export default function Admin() {
   </form>}
   {tab==="Enquiries" && <section className="admin-panel"><h2>Contact submissions</h2>{data.enquiries.length===0?<p className="admin-muted">No enquiries have been received yet.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Received</th><th>Sender</th><th>Subject / message</th><th>Status</th></tr></thead><tbody>{data.enquiries.map(x=><tr key={x.id}><td>{new Date(x.created_at).toLocaleString()}</td><td><b>{x.name}</b><small>{x.email}</small></td><td><b>{x.subject}</b><p>{x.message}</p></td><td><select value={x.status} onChange={e=>setMessageStatus(x.id,e.target.value)}><option value="new">New</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></td></tr>)}</tbody></table></div>}</section>}
   {tab==="Donations" && <section className="admin-panel"><h2>Donation records</h2><p className="admin-muted">Only payments confirmed by Stripe's signed webhook should be recorded here.</p>{data.donations.length===0?<p>No confirmed donations are recorded yet.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Date</th><th>Donor email</th><th>Amount</th><th>Payment status</th></tr></thead><tbody>{data.donations.map(x=><tr key={x.id}><td>{new Date(x.created_at).toLocaleString()}</td><td>{x.donor_email||"Not provided"}</td><td>{(x.amount_cents/100).toFixed(2)} {x.currency.toUpperCase()}</td><td>{x.payment_status}</td></tr>)}</tbody></table></div>}</section>}
+  {tab==="Audit log" && <section className="admin-panel"><h2>Recent administrative activity</h2><p className="admin-muted">A record of important actions performed in the administration system.</p>{!data.auditLogs?.length?<p>No activity has been recorded yet.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Details</th></tr></thead><tbody>{data.auditLogs.map(x=><tr key={x.id}><td>{new Date(x.created_at+"Z").toLocaleString()}</td><td>{x.actor_email}</td><td><b>{x.action}</b></td><td>{x.details||"—"}</td></tr>)}</tbody></table></div>}</section>}
   {tab==="Administrators" && <><section className="admin-panel"><h2>Add an administrator</h2><form className="admin-add-form" onSubmit={addAdmin}><label>Email<input type="email" required value={newAdmin.email} onChange={e=>setNewAdmin({...newAdmin,email:e.target.value})}/></label><label>Temporary password<input type="password" minLength="12" required value={newAdmin.password} onChange={e=>setNewAdmin({...newAdmin,password:e.target.value})}/></label><button disabled={busy}>Create account</button></form><p className="admin-help">Use a unique password of at least 12 characters. Share credentials securely and ask the new administrator to change their password after first sign-in.</p></section><section className="admin-panel"><h2>Administrator accounts</h2>{data.admins.map(a=><div className="admin-user" key={a.id}><span><b>{a.email}</b><small>{a.active?"Active":"Disabled"} · Added {new Date(a.created_at).toLocaleDateString()}</small></span><button className="admin-secondary" onClick={()=>toggleAdmin(a.id,!!a.active)}>{a.active?"Disable":"Reactivate"}</button></div>)}</section></>}
   </main></div>;
 }
