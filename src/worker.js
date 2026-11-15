@@ -4,6 +4,10 @@ const enc = new TextEncoder();
 const b64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const fromB64 = value => Uint8Array.from(atob(value.replace(/-/g,"+").replace(/_/g,"/")), c => c.charCodeAt(0));
 const db = env => { if (!env.GDOF_DB) throw new Error("Admin database is not configured. Create the GDOF D1 database and add the GDOF_DB binding."); return env.GDOF_DB; };
+async function audit(env, actor, action, details = "") {
+  await db(env).prepare("INSERT INTO admin_audit_logs(id,actor_email,action,details) VALUES(?,?,?,?)")
+    .bind(crypto.randomUUID(), actor, action, String(details).slice(0,500)).run();
+}
 async function passwordHash(password, salt) {
   const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits({ name:"PBKDF2", salt:enc.encode(salt), iterations:100000, hash:"SHA-256" }, key, 256);
@@ -54,6 +58,7 @@ async function adminApi(request, env, url) {
     const user=await db(env).prepare("SELECT id,email,password_hash,password_salt,active FROM admins WHERE email=?").bind(email).first();
     if (!user || !user.active || (await passwordHash(password,user.password_salt))!==user.password_hash) return json({error:"Invalid email or password."},401);
     const token=await makeSession(user.email,env.ADMIN_SESSION_SECRET);
+    await audit(env,user.email,"admin.login","Administrator signed in");
     return json({user:{email:user.email}},200,cookie(token));
   }
   const user=await requireAdmin(request,env);
@@ -62,19 +67,21 @@ async function adminApi(request, env, url) {
   const D=db(env);
   if (path==="/api/admin/me" && method==="GET") return json({user:{email:user.email}});
   if (path==="/api/admin/data" && method==="GET") {
-    const [enquiries,donations,admins,rows]=await Promise.all([
+    const [enquiries,donations,admins,rows,auditRows]=await Promise.all([
       D.prepare("SELECT * FROM enquiries ORDER BY created_at DESC LIMIT 300").all(),
       D.prepare("SELECT * FROM donations ORDER BY created_at DESC LIMIT 300").all(),
       D.prepare("SELECT id,email,active,created_at FROM admins ORDER BY created_at ASC").all(),
-      D.prepare("SELECT content_key,content_value FROM site_content").all()
+      D.prepare("SELECT content_key,content_value FROM site_content").all(),
+      D.prepare("SELECT id,actor_email,action,details,created_at FROM admin_audit_logs ORDER BY created_at DESC LIMIT 200").all()
     ]);
     const content={}; for (const row of rows.results||[]) content[row.content_key]=row.content_value;
-    return json({enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],content});
+    return json({enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],auditLogs:auditRows.results||[],content});
   }
   if (path==="/api/admin/content" && method==="PUT") {
     const body=await request.json().catch(()=>({}));
     const allowed=["tagline","about","mission","contactEmail","heroTitleLine1","heroTitleLine2","heroDescription","program1Title","program1Description","program2Title","program2Description","program3Title","program3Description","program4Title","program4Description","program5Title","program5Description","program6Title","program6Description","leader1Name","leader1Role","leader2Name","leader2Role","leader3Name","leader3Role","leader4Name","leader4Role","leader5Name","leader5Role"];
     for (const key of allowed) if (typeof body[key]==="string") await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(key,body[key].slice(0,5000)).run();
+    await audit(env,user.email,"website.content.updated","Updated public website content");
     return json({ok:true});
   }
   const enquiryMatch=path.match(/^\/api\/admin\/enquiries\/([^/]+)$/);
@@ -82,6 +89,7 @@ async function adminApi(request, env, url) {
     const body=await request.json().catch(()=>({}));
     if (!["new","in_progress","resolved"].includes(body.status)) return json({error:"Invalid enquiry status."},400);
     await D.prepare("UPDATE enquiries SET status=? WHERE id=?").bind(body.status,enquiryMatch[1]).run();
+    await audit(env,user.email,"enquiry.status.updated",`Enquiry ${enquiryMatch[1]} marked ${body.status}`);
     return json({ok:true});
   }
   if (path==="/api/admin/admins" && method==="POST") {
@@ -91,6 +99,7 @@ async function adminApi(request, env, url) {
     const salt=b64(crypto.getRandomValues(new Uint8Array(16))), hash=await passwordHash(password,salt);
     try { await D.prepare("INSERT INTO admins(id,email,password_hash,password_salt,active) VALUES(?,?,?,?,1)").bind(crypto.randomUUID(),email,hash,salt).run(); }
     catch { return json({error:"That administrator email may already exist."},409); }
+    await audit(env,user.email,"administrator.created",`Created administrator ${email}`);
     return json({ok:true});
   }
   const adminMatch=path.match(/^\/api\/admin\/admins\/([^/]+)$/);
@@ -99,6 +108,7 @@ async function adminApi(request, env, url) {
     if (typeof body.active!=="boolean") return json({error:"Invalid account status."},400);
     if (adminMatch[1]===user.id && !body.active) return json({error:"You cannot disable your own account."},400);
     await D.prepare("UPDATE admins SET active=? WHERE id=?").bind(body.active?1:0,adminMatch[1]).run();
+    await audit(env,user.email,body.active?"administrator.reactivated":"administrator.disabled",`Administrator record ${adminMatch[1]}`);
     return json({ok:true});
   }
   return json({error:"Admin endpoint not found."},404);
