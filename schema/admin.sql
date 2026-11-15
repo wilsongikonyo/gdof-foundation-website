@@ -29,3 +29,13 @@ CREATE TABLE IF NOT EXISTS site_content (
   content_value TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+  id TEXT PRIMARY KEY,
+  actor_email TEXT NOT NULL,
+  action TEXT NOT NULL,
+  details TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at DESC);
