@@ -85,6 +85,38 @@ async function adminApi(request, env, url) {
     const content={}; for (const row of rows.results||[]) content[row.content_key]=row.content_value;
     return json({role,counts:{enquiries:enquiryCount?.count||0,donations:donationCount?.count||0,admins:adminCount?.count??null},enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],auditLogs:auditRows.results||[],content});
   }
+  if (path==="/api/admin/stories" && method==="GET") {
+    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage program stories."},403);
+    const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='program_stories'").first();
+    let stories=[]; try { stories=JSON.parse(row?.content_value||"[]"); } catch {}
+    return json({stories:Array.isArray(stories)?stories:[]});
+  }
+  if (path==="/api/admin/stories" && method==="PUT") {
+    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage program stories."},403);
+    const body=await request.json().catch(()=>({}));
+    if (!Array.isArray(body.stories) || body.stories.length>300) return json({error:"Submit a valid list of up to 300 stories."},400);
+    const stories=[];
+    for (const item of body.stories) {
+      const story={
+        id:String(item.id||crypto.randomUUID()).slice(0,80),
+        program:String(item.program||""),
+        title:String(item.title||"").trim().slice(0,180),
+        summary:String(item.summary||"").trim().slice(0,900),
+        body:String(item.body||"").trim().slice(0,20000),
+        imageUrl:String(item.imageUrl||"").trim().slice(0,500),
+        imageAlt:String(item.imageAlt||"").trim().slice(0,250),
+        caption:String(item.caption||"").trim().slice(0,500),
+        publishedAt:String(item.publishedAt||"").slice(0,30),
+        published:Boolean(item.published)
+      };
+      if (!/^[1-6]$/.test(story.program) || !story.title || !story.summary || !story.body) return json({error:"Each story needs a program, title, summary and full story."},400);
+      if (story.imageUrl && !story.imageUrl.startsWith("/media/uploads/")) return json({error:"Story images must be selected from the GDOF Media Library."},400);
+      stories.push(story);
+    }
+    await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES('program_stories',?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(stories)).run();
+    await audit(env,user.email,"program.stories.updated",`Saved ${stories.length} program stories`);
+    return json({ok:true,stories});
+  }
   if (path==="/api/admin/media" && method==="GET") {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage media."},403);
     if (!env.GDOF_MEDIA) return json({error:"Media storage is not configured."},503);
@@ -197,6 +229,14 @@ export default {
       headers.set("Cache-Control","public, max-age=31536000, immutable");
       headers.set("X-Content-Type-Options","nosniff");
       return new Response(object.body,{headers});
+    }
+    if (url.pathname === "/api/public-stories" && request.method === "GET") {
+      if (!env.GDOF_DB) return json({stories:[]});
+      try {
+        const row=await env.GDOF_DB.prepare("SELECT content_value FROM site_content WHERE content_key='program_stories'").first();
+        const stories=JSON.parse(row?.content_value||"[]");
+        return json({stories:Array.isArray(stories)?stories.filter(story=>story.published===true):[]});
+      } catch { return json({stories:[]}); }
     }
     if (url.pathname === "/api/public-content" && request.method === "GET") {
       if (!env.GDOF_DB) return json({});
