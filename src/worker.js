@@ -85,6 +85,46 @@ async function adminApi(request, env, url) {
     const content={}; for (const row of rows.results||[]) content[row.content_key]=row.content_value;
     return json({role,counts:{enquiries:enquiryCount?.count||0,donations:donationCount?.count||0,admins:adminCount?.count??null},enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],auditLogs:auditRows.results||[],content});
   }
+  if (path==="/api/admin/media" && method==="GET") {
+    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage media."},403);
+    if (!env.GDOF_MEDIA) return json({error:"Media storage is not configured."},503);
+    const listed = await env.GDOF_MEDIA.list({prefix:"uploads/",limit:500});
+    const files = (listed.objects||[]).map(object => ({
+      key:object.key,
+      size:object.size,
+      uploaded:object.uploaded,
+      url:"/media/"+object.key.split("/").map(encodeURIComponent).join("/")
+    }));
+    return json({files, truncated:!listed.truncated});
+  }
+  if (path==="/api/admin/media" && method==="POST") {
+    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot upload media."},403);
+    if (!env.GDOF_MEDIA) return json({error:"Media storage is not configured."},503);
+    const form = await request.formData();
+    const file = form.get("file");
+    if (!file || typeof file.arrayBuffer!=="function" || !file.size) return json({error:"Choose an image to upload."},400);
+    if (file.size > 8*1024*1024) return json({error:"Images must be 8 MB or smaller."},413);
+    const allowed = {"image/jpeg":"jpg","image/png":"png","image/webp":"webp","image/gif":"gif"};
+    const ext = allowed[file.type];
+    if (!ext) return json({error:"Use a JPG, PNG, WebP or GIF image."},415);
+    const key = "uploads/"+new Date().toISOString().slice(0,10)+"/"+crypto.randomUUID()+"."+ext;
+    await env.GDOF_MEDIA.put(key, file.stream(), {
+      httpMetadata:{contentType:file.type,cacheControl:"public, max-age=31536000, immutable"},
+      customMetadata:{originalName:String(file.name||"image").slice(0,180),uploadedBy:user.email}
+    });
+    await audit(env,user.email,"media.uploaded",key);
+    return json({file:{key,url:"/media/"+key.split("/").map(encodeURIComponent).join("/"),size:file.size}});
+  }
+  const mediaDelete = path.match(/^\\/api\\/admin\\/media\\/(.+)$/);
+  if (mediaDelete && method==="DELETE") {
+    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot delete media."},403);
+    if (!env.GDOF_MEDIA) return json({error:"Media storage is not configured."},503);
+    let key; try { key=decodeURIComponent(mediaDelete[1]); } catch { return json({error:"Invalid media key."},400); }
+    if (!key.startsWith("uploads/") || key.includes("..") || key.includes("\\\\")) return json({error:"Invalid media key."},400);
+    await env.GDOF_MEDIA.delete(key);
+    await audit(env,user.email,"media.deleted",key);
+    return json({ok:true});
+  }
   if (path==="/api/admin/content" && method==="PUT") {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot edit website content."},403);
     const body=await request.json().catch(()=>({}));
@@ -144,6 +184,19 @@ export default {
     if (url.pathname.startsWith("/api/admin/")) {
       try { return await adminApi(request,env,url); }
       catch (error) { return json({error:error.message||"Admin service unavailable."},503); }
+    }
+    if (url.pathname.startsWith("/media/") && request.method === "GET") {
+      if (!env.GDOF_MEDIA) return new Response("Media storage is not configured.",{status:503});
+      let key; try { key=url.pathname.slice("/media/".length).split("/").map(decodeURIComponent).join("/"); } catch { return new Response("Invalid media path.",{status:400}); }
+      if (!key.startsWith("uploads/") || key.includes("..") || key.includes("\\\\")) return new Response("Not found.",{status:404});
+      const object=await env.GDOF_MEDIA.get(key);
+      if (!object) return new Response("Not found.",{status:404});
+      const headers=new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set("etag",object.httpEtag);
+      headers.set("Cache-Control","public, max-age=31536000, immutable");
+      headers.set("X-Content-Type-Options","nosniff");
+      return new Response(object.body,{headers});
     }
     if (url.pathname === "/api/public-content" && request.method === "GET") {
       if (!env.GDOF_DB) return json({});
