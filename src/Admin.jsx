@@ -81,7 +81,7 @@ export default function Admin() {
       const response=await fetch("/api/admin/media",{method:"POST",credentials:"same-origin",body:form});
       const result=await response.json().catch(()=>({}));
       if(!response.ok) throw new Error(result.error||"Image upload failed.");
-      setStoryForm(current=>({...current,imageUrl:result.file.url,imageAlt:current.imageAlt||file.name.replace(/\\.[^.]+$/,"").replace(/[-_]/g," ")}));
+      setStoryForm(current=>({...current,imageUrl:result.file.url,imageAlt:current.imageAlt||file.name.replace(/\.[^.]+$/,"").replace(/[-_]/g," ")}));
       await loadMedia();
       setNotice("Image uploaded and saved in the Media Library, and attached to this story.");
     } catch(err) { setNotice(err.message); }
