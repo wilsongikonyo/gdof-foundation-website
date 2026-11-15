@@ -135,7 +135,8 @@ export default {
       const timestamp=Number(parts.t);
       if (!timestamp || Math.abs(Date.now()/1000-timestamp)>300 || !parts.v1) return json({error:"Invalid webhook signature."},400);
       const key=await crypto.subtle.importKey("raw",enc.encode(env.STRIPE_WEBHOOK_SECRET),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
-      const signature=await crypto.subtle.sign("HMAC",key,enc.encode(parts.t+"."+raw));\n      const expected=Array.from(new Uint8Array(signature),b=>b.toString(16).padStart(2,"0")).join("");
+      const signature=await crypto.subtle.sign("HMAC",key,enc.encode(parts.t+"."+raw));
+      const expected=Array.from(new Uint8Array(signature),b=>b.toString(16).padStart(2,"0")).join("");
       if (expected!==parts.v1) return json({error:"Invalid webhook signature."},400);
       let event; try { event=JSON.parse(raw); } catch { return json({error:"Invalid event body."},400); }
       if (event.type==="checkout.session.completed") {
