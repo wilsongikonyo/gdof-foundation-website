@@ -73,7 +73,7 @@ async function adminApi(request, env, url) {
   }
   if (path==="/api/admin/content" && method==="PUT") {
     const body=await request.json().catch(()=>({}));
-    const allowed=["tagline","about","mission","contactEmail"];
+    const allowed=["tagline","about","mission","contactEmail","heroTitleLine1","heroTitleLine2","heroDescription","program1Title","program1Description","program2Title","program2Description","program3Title","program3Description","program4Title","program4Description","program5Title","program5Description","program6Title","program6Description","leader1Name","leader1Role","leader2Name","leader2Role","leader3Name","leader3Role","leader4Name","leader4Role","leader5Name","leader5Role"];
     for (const key of allowed) if (typeof body[key]==="string") await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(key,body[key].slice(0,5000)).run();
     return json({ok:true});
   }
