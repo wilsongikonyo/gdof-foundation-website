@@ -121,12 +121,6 @@ async function adminApi(request, env, url) {
     await audit(env,user.email,"partnership.records.updated",`Saved ${partnerships.length} partner and grant records`);
     return json({ok:true,partnerships});
   }
-  if (path==="/api/public-partnerships" && method==="GET") {
-    const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='partnership_records'").first();
-    let records=[]; try { records=JSON.parse(row?.content_value||"[]"); } catch {}
-    const visible=(Array.isArray(records)?records:[]).filter(x=>x.showPublic&&["Awarded / confirmed","Active","Completed"].includes(x.status)).map(x=>({id:x.id,partnerName:x.partnerName,title:x.title,partnerType:x.partnerType,program:x.program,supportType:x.supportType,startDate:x.startDate,endDate:x.endDate,status:x.status,publicDescription:x.publicDescription}));
-    return json({partnerships:visible});
-  }
   if (path==="/api/admin/stories" && method==="GET") {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage program stories."},403);
     const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='program_stories'").first();
@@ -272,6 +266,15 @@ export default {
       headers.set("X-Content-Type-Options","nosniff");
       return new Response(object.body,{headers});
     }
+    if (url.pathname === "/api/public-partnerships" && request.method === "GET") {
+      if (!env.GDOF_DB) return json({partnerships:[]});
+      try {
+        const row=await env.GDOF_DB.prepare("SELECT content_value FROM site_content WHERE content_key='partnership_records'").first();
+        const records=JSON.parse(row?.content_value||"[]");
+        const partnerships=(Array.isArray(records)?records:[]).filter(x=>x.showPublic&&["Awarded / confirmed","Active","Completed"].includes(x.status)).map(x=>({id:x.id,partnerName:x.partnerName,title:x.title,partnerType:x.partnerType,program:x.program,supportType:x.supportType,startDate:x.startDate,endDate:x.endDate,status:x.status,publicDescription:x.publicDescription}));
+        return json({partnerships});
+      } catch { return json({partnerships:[]}); }
+    }
     if (url.pathname === "/api/public-stories" && request.method === "GET") {
       if (!env.GDOF_DB) return json({stories:[]});
       try {
@@ -284,7 +287,7 @@ export default {
       if (!env.GDOF_DB) return json({});
       try {
         const rows=await env.GDOF_DB.prepare("SELECT content_key,content_value FROM site_content").all();
-        const content={}; for (const row of rows.results||[]) content[row.content_key]=row.content_value;
+        const content={}; for (const row of rows.results||[]) if (!["program_stories","partnership_records"].includes(row.content_key)) content[row.content_key]=row.content_value;
         return json(content);
       } catch { return json({}); }
     }
