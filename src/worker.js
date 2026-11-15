@@ -85,6 +85,48 @@ async function adminApi(request, env, url) {
     const content={}; for (const row of rows.results||[]) if (row.content_key!=="program_stories") content[row.content_key]=row.content_value;
     return json({role,counts:{enquiries:enquiryCount?.count||0,donations:donationCount?.count||0,admins:adminCount?.count??null},enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],auditLogs:auditRows.results||[],content});
   }
+  if (path==="/api/admin/partnerships" && method==="GET") {
+    if (user.role!=="super_admin") return json({error:"Only a Super Admin can view partner and grant records."},403);
+    const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='partnership_records'").first();
+    let partnerships=[]; try { partnerships=JSON.parse(row?.content_value||"[]"); } catch {}
+    return json({partnerships:Array.isArray(partnerships)?partnerships:[]});
+  }
+  if (path==="/api/admin/partnerships" && method==="PUT") {
+    if (user.role!=="super_admin") return json({error:"Only a Super Admin can manage partner and grant records."},403);
+    const body=await request.json().catch(()=>({}));
+    if (!Array.isArray(body.partnerships)||body.partnerships.length>500) return json({error:"Submit a valid list of up to 500 partnership records."},400);
+    const partnerships=[];
+    for (const item of body.partnerships) {
+      const record={
+        id:String(item.id||crypto.randomUUID()).slice(0,80),
+        partnerName:String(item.partnerName||"").trim().slice(0,180),
+        partnerType:String(item.partnerType||"").trim().slice(0,120),
+        title:String(item.title||"").trim().slice(0,180),
+        program:String(item.program||"").trim().slice(0,120),
+        supportType:String(item.supportType||"").trim().slice(0,120),
+        amount:String(item.amount||"").trim().slice(0,40),
+        currency:String(item.currency||"USD").trim().slice(0,8),
+        startDate:String(item.startDate||"").slice(0,10),
+        endDate:String(item.endDate||"").slice(0,10),
+        status:String(item.status||"Prospective").trim().slice(0,60),
+        publicDescription:String(item.publicDescription||"").trim().slice(0,3000),
+        internalNotes:String(item.internalNotes||"").trim().slice(0,5000),
+        showPublic:Boolean(item.showPublic)
+      };
+      if (!record.partnerName||!record.title||!record.partnerType||!record.supportType) return json({error:"Each record needs a partner name, partner type, title and support type."},400);
+      if (record.startDate&&record.endDate&&record.endDate<record.startDate) return json({error:"The end date cannot be earlier than the start date."},400);
+      partnerships.push(record);
+    }
+    await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES('partnership_records',?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(partnerships)).run();
+    await audit(env,user.email,"partnership.records.updated",`Saved ${partnerships.length} partner and grant records`);
+    return json({ok:true,partnerships});
+  }
+  if (path==="/api/public-partnerships" && method==="GET") {
+    const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='partnership_records'").first();
+    let records=[]; try { records=JSON.parse(row?.content_value||"[]"); } catch {}
+    const visible=(Array.isArray(records)?records:[]).filter(x=>x.showPublic&&["Awarded / confirmed","Active","Completed"].includes(x.status)).map(x=>({id:x.id,partnerName:x.partnerName,title:x.title,partnerType:x.partnerType,program:x.program,supportType:x.supportType,startDate:x.startDate,endDate:x.endDate,status:x.status,publicDescription:x.publicDescription}));
+    return json({partnerships:visible});
+  }
   if (path==="/api/admin/stories" && method==="GET") {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage program stories."},403);
     const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='program_stories'").first();
