@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import "./admin.css";
 
-const roleTabs = { super_admin: ["Overview", "Website content", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };\nconst roleLabels = { super_admin: "Super Admin", editor: "Editor", finance: "Finance", viewer: "Viewer" };
+const roleTabs = { super_admin: ["Overview", "Website content", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
+const roleLabels = { super_admin: "Super Admin", editor: "Editor", finance: "Finance", viewer: "Viewer" };
 const defaults = {
   tagline: "Empowering People. Transforming Communities.",
   about: "Global Development and Opportunity Foundation (GDOF) is a Delaware-incorporated nonprofit organization working to advance human wellbeing and sustainable community development.",
@@ -37,7 +38,8 @@ export default function Admin() {
   const [data, setData] = useState({ enquiries: [], donations: [], admins: [], auditLogs: [], content: defaults });
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [newAdmin, setNewAdmin] = useState({ email: "", password: "", role: "editor" });\n  const tabs = roleTabs[user?.role || "super_admin"] || roleTabs.viewer;
+  const [newAdmin, setNewAdmin] = useState({ email: "", password: "", role: "editor" });
+  const tabs = roleTabs[user?.role || "super_admin"] || roleTabs.viewer;
 
   const api = async (path, options = {}) => {
     const response = await fetch(path, { credentials: "same-origin", ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
@@ -59,7 +61,8 @@ export default function Admin() {
   const logout = async () => { await api("/api/admin/logout", { method: "POST", body: "{}" }).catch(() => {}); setUser(null); setData({ enquiries: [], donations: [], admins: [], auditLogs: [], content: defaults }); };
   const saveContent = async e => { e.preventDefault(); setBusy(true); setNotice(""); try { await api("/api/admin/content", { method: "PUT", body: JSON.stringify(data.content) }); setNotice("Website content saved."); } catch (err) { setNotice(err.message); } finally { setBusy(false); } };
   const setMessageStatus = async (id, status) => { try { await api("/api/admin/enquiries/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify({ status }) }); await refresh(); } catch (err) { setNotice(err.message); } };
-  const addAdmin = async e => { e.preventDefault(); setBusy(true); try { await api("/api/admin/admins", { method: "POST", body: JSON.stringify(newAdmin) }); setNewAdmin({ email: "", password: "", role: "editor" }); await refresh(); setNotice("Administrator added."); } catch (err) { setNotice(err.message); } finally { setBusy(false); } };\n  const changeAdminRole = async (id, role) => { try { await api("/api/admin/admins/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify({ role }) }); await refresh(); setNotice("Administrator role updated."); } catch (err) { setNotice(err.message); } };
+  const addAdmin = async e => { e.preventDefault(); setBusy(true); try { await api("/api/admin/admins", { method: "POST", body: JSON.stringify(newAdmin) }); setNewAdmin({ email: "", password: "", role: "editor" }); await refresh(); setNotice("Administrator added."); } catch (err) { setNotice(err.message); } finally { setBusy(false); } };
+  const changeAdminRole = async (id, role) => { try { await api("/api/admin/admins/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify({ role }) }); await refresh(); setNotice("Administrator role updated."); } catch (err) { setNotice(err.message); } };
   const toggleAdmin = async (id, active) => { try { await api("/api/admin/admins/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify({ active: !active }) }); await refresh(); } catch (err) { setNotice(err.message); } };
 
   if (!user) return <div className="admin-shell"><div className="admin-login"><a className="admin-back" href="/">← Back to GDOF website</a><div className="admin-mark">GDOF</div><p className="admin-eyebrow">SECURE ADMINISTRATION</p><h1>Welcome back.</h1><p className="admin-muted">Sign in to manage the foundation website and records.</p><form onSubmit={login}><label>Administrator email<input type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} /></label><label>Password<input type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} /></label><button disabled={busy}>{busy ? "Signing in…" : "Sign in securely →"}</button>{notice && <p className="admin-notice">{notice}</p>}</form><small>Access is restricted to authorized GDOF administrators.</small></div></div>;
