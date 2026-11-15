@@ -1,7 +1,7 @@
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers } });
 const enc = new TextEncoder();
-const b64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/,"");
+const b64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const fromB64 = value => Uint8Array.from(atob(value.replace(/-/g,"+").replace(/_/g,"/")), c => c.charCodeAt(0));
 const db = env => { if (!env.GDOF_DB) throw new Error("Admin database is not configured. Create the GDOF D1 database and add the GDOF_DB binding."); return env.GDOF_DB; };
 async function passwordHash(password, salt) {
@@ -77,7 +77,7 @@ async function adminApi(request, env, url) {
     for (const key of allowed) if (typeof body[key]==="string") await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(key,body[key].slice(0,5000)).run();
     return json({ok:true});
   }
-  const enquiryMatch=path.match(/^\\/api\\/admin\\/enquiries\\/([^/]+)$/);
+  const enquiryMatch=path.match(/^\/api\/admin\/enquiries\/([^/]+)$/);
   if (enquiryMatch && method==="PATCH") {
     const body=await request.json().catch(()=>({}));
     if (!["new","in_progress","resolved"].includes(body.status)) return json({error:"Invalid enquiry status."},400);
@@ -87,13 +87,13 @@ async function adminApi(request, env, url) {
   if (path==="/api/admin/admins" && method==="POST") {
     const body=await request.json().catch(()=>({}));
     const email=String(body.email||"").trim().toLowerCase(), password=String(body.password||"");
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || password.length<12) return json({error:"Enter a valid email and a password of at least 12 characters."},400);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length<12) return json({error:"Enter a valid email and a password of at least 12 characters."},400);
     const salt=b64(crypto.getRandomValues(new Uint8Array(16))), hash=await passwordHash(password,salt);
     try { await D.prepare("INSERT INTO admins(id,email,password_hash,password_salt,active) VALUES(?,?,?,?,1)").bind(crypto.randomUUID(),email,hash,salt).run(); }
     catch { return json({error:"That administrator email may already exist."},409); }
     return json({ok:true});
   }
-  const adminMatch=path.match(/^\\/api\\/admin\\/admins\\/([^/]+)$/);
+  const adminMatch=path.match(/^\/api\/admin\/admins\/([^/]+)$/);
   if (adminMatch && method==="PATCH") {
     const body=await request.json().catch(()=>({}));
     if (typeof body.active!=="boolean") return json({error:"Invalid account status."},400);
