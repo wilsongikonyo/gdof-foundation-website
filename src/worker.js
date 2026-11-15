@@ -121,9 +121,12 @@ async function adminApi(request, env, url) {
     const body=await request.json().catch(()=>({}));
     if (typeof body.active!=="boolean" && !["super_admin","editor","finance","viewer"].includes(body.role)) return json({error:"Invalid administrator update."},400);
     if (body.role && !["super_admin","editor","finance","viewer"].includes(body.role)) return json({error:"Choose a valid administrator role."},400);
-    if (adminMatch[1]===user.id && !body.active) return json({error:"You cannot disable your own account."},400);
-    await D.prepare("UPDATE admins SET active=? WHERE id=?").bind(body.active?1:0,adminMatch[1]).run();
-    await audit(env,user.email,body.active?"administrator.reactivated":"administrator.disabled",`Administrator record ${adminMatch[1]}`);
+    if (adminMatch[1]===user.id && body.active===false) return json({error:"You cannot disable your own account."},400);
+    if (adminMatch[1]===user.id && body.role && body.role!=="super_admin") return json({error:"You cannot remove your own Super Admin role."},400);
+    if (typeof body.active==="boolean") await D.prepare("UPDATE admins SET active=? WHERE id=?").bind(body.active?1:0,adminMatch[1]).run();
+    if (body.role) await D.prepare("UPDATE admins SET role=? WHERE id=?").bind(body.role,adminMatch[1]).run();
+    const action=body.role?"administrator.role.updated":body.active?"administrator.reactivated":"administrator.disabled";
+    await audit(env,user.email,action,`Administrator record ${adminMatch[1]}`);
     return json({ok:true});
   }
   return json({error:"Admin endpoint not found."},404);
