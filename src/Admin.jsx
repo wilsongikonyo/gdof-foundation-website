@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./admin.css";
 
-const roleTabs = { super_admin: ["Overview", "Website content", "Media library", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Media library", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
+const roleTabs = { super_admin: ["Overview", "Website content", "Program stories", "Media library", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Program stories", "Media library", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
 const roleLabels = { super_admin: "Super Admin", editor: "Editor", finance: "Finance", viewer: "Viewer" };
 const defaults = {
   tagline: "Empowering People. Transforming Communities.",
@@ -44,6 +44,9 @@ export default function Admin() {
   const [newAdmin, setNewAdmin] = useState({ email: "", password: "", role: "editor" });
   const [mediaFiles, setMediaFiles] = useState([]);
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [stories, setStories] = useState([]);
+  const [storyForm, setStoryForm] = useState({id:"",program:"1",title:"",summary:"",body:"",imageUrl:"",imageAlt:"",caption:"",publishedAt:new Date().toISOString().slice(0,10),published:false});
+  const [storyBusy, setStoryBusy] = useState(false);
   const tabs = roleTabs[user?.role || "super_admin"] || roleTabs.viewer;
 
   const api = async (path, options = {}) => {
@@ -64,7 +67,45 @@ export default function Admin() {
     catch(err) { setNotice(err.message); }
     finally { setMediaBusy(false); }
   };
-  useEffect(() => { if (user && tab==="Media library") loadMedia(); }, [user,tab]);
+  useEffect(() => { if (user && (tab==="Media library" || tab==="Program stories")) loadMedia(); }, [user,tab]);
+  const loadStories = async () => {
+    try { const result=await api("/api/admin/stories"); setStories(result.stories||[]); }
+    catch(err) { setNotice(err.message); }
+  };
+  useEffect(() => { if (user && tab==="Program stories") loadStories(); }, [user,tab]);
+  const uploadStoryImage = async e => {
+    const file=e.target.files?.[0]; if(!file) return;
+    setStoryBusy(true); setNotice("");
+    try {
+      const form=new FormData(); form.append("file",file);
+      const response=await fetch("/api/admin/media",{method:"POST",credentials:"same-origin",body:form});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(result.error||"Image upload failed.");
+      setStoryForm(current=>({...current,imageUrl:result.file.url,imageAlt:current.imageAlt||file.name.replace(/\\.[^.]+$/,"").replace(/[-_]/g," ")}));
+      await loadMedia();
+      setNotice("Image uploaded and saved in the Media Library, and attached to this story.");
+    } catch(err) { setNotice(err.message); }
+    finally { setStoryBusy(false); e.target.value=""; }
+  };
+  const saveStory = async e => {
+    e.preventDefault(); setStoryBusy(true); setNotice("");
+    try {
+      const item={...storyForm,id:storyForm.id||crypto.randomUUID()};
+      const next=storyForm.id?stories.map(x=>x.id===storyForm.id?item:x):[item,...stories];
+      const result=await api("/api/admin/stories",{method:"PUT",body:JSON.stringify({stories:next})});
+      setStories(result.stories||next);
+      setStoryForm({id:"",program:"1",title:"",summary:"",body:"",imageUrl:"",imageAlt:"",caption:"",publishedAt:new Date().toISOString().slice(0,10),published:false});
+      setNotice(item.published?"Story published successfully.":"Story saved as a draft.");
+    } catch(err) { setNotice(err.message); }
+    finally { setStoryBusy(false); }
+  };
+  const editStory = story => { setStoryForm({...story}); window.scrollTo({top:0,behavior:"smooth"}); };
+  const deleteStory = async id => {
+    if(!window.confirm("Delete this program story?")) return;
+    setStoryBusy(true);
+    try { const next=stories.filter(x=>x.id!==id); const result=await api("/api/admin/stories",{method:"PUT",body:JSON.stringify({stories:next})}); setStories(result.stories||next); setNotice("Story deleted."); }
+    catch(err) { setNotice(err.message); } finally { setStoryBusy(false); }
+  };
   const uploadMedia = async e => {
     const file=e.target.files?.[0]; if(!file) return;
     setMediaBusy(true); setNotice("");
@@ -137,6 +178,22 @@ export default function Admin() {
     <button disabled={busy}>{busy?"Saving…":"Save and publish website content"}</button>
     <p className="admin-help">Changes are stored in the GDOF database and displayed on the public homepage after saving. Images and the remaining design sections are not yet editable here.</p>
   </form>}
+  {tab==="Program stories" && <section className="admin-panel admin-stories">
+    <p className="admin-intro">Create project updates and activity stories under one of GDOF's six program categories. Images uploaded here are also saved in the Media Library.</p>
+    <form className="story-editor" onSubmit={saveStory}>
+      <h2>{storyForm.id?"Edit program story":"Add a program story"}</h2>
+      <label>Program category<select value={storyForm.program} onChange={e=>setStoryForm({...storyForm,program:e.target.value})}>{["Food Security & Family Support","Education & Bursaries","Youth Entrepreneurship","Employment & Livelihoods","Community Development","Emergency Relief"].map((name,i)=><option value={String(i+1)} key={name}>{name}</option>)}</select></label>
+      <label>Story title<input required maxLength="180" value={storyForm.title} onChange={e=>setStoryForm({...storyForm,title:e.target.value})} placeholder="e.g. Supporting young entrepreneurs through mobility"/></label>
+      <label>Short summary<textarea required rows="2" maxLength="900" value={storyForm.summary} onChange={e=>setStoryForm({...storyForm,summary:e.target.value})} placeholder="A short introduction visitors will see before opening the story."/></label>
+      <label>Full story<textarea required rows="7" maxLength="20000" value={storyForm.body} onChange={e=>setStoryForm({...storyForm,body:e.target.value})} placeholder="Describe the activity, its purpose, participants and verified outcomes."/></label>
+      <div className="story-image-upload"><h3>Story photograph</h3>{storyForm.imageUrl&&<img src={storyForm.imageUrl} alt={storyForm.imageAlt||"Story preview"}/>}<label className="media-upload-button">＋ Upload photograph<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={uploadStoryImage} disabled={storyBusy}/></label><p className="admin-help">The photograph uploads directly to R2 and appears in your Media Library automatically. JPG, PNG, WebP or GIF; maximum 8 MB.</p><label>Or choose an existing Media Library image<select value={storyForm.imageUrl} onChange={e=>setStoryForm({...storyForm,imageUrl:e.target.value})}><option value="">No image selected</option>{mediaFiles.map(file=><option key={file.key} value={file.url}>{file.key.split("/").pop()}</option>)}</select></label><label>Image description (alt text)<input value={storyForm.imageAlt} onChange={e=>setStoryForm({...storyForm,imageAlt:e.target.value})} placeholder="Describe what the photograph shows"/></label><label>Photo caption<input value={storyForm.caption} onChange={e=>setStoryForm({...storyForm,caption:e.target.value})} placeholder="Optional caption"/></label></div>
+      <label>Activity / publication date<input type="date" value={storyForm.publishedAt} onChange={e=>setStoryForm({...storyForm,publishedAt:e.target.value})}/></label>
+      <label className="story-publish"><input type="checkbox" checked={storyForm.published} onChange={e=>setStoryForm({...storyForm,published:e.target.checked})}/> Publish this story on the public website</label>
+      <div className="story-actions"><button disabled={storyBusy}>{storyBusy?"Saving…":storyForm.id?"Save story changes":"Save program story"}</button>{storyForm.id&&<button type="button" className="admin-secondary" onClick={()=>setStoryForm({id:"",program:"1",title:"",summary:"",body:"",imageUrl:"",imageAlt:"",caption:"",publishedAt:new Date().toISOString().slice(0,10),published:false})}>Cancel edit</button>}</div>
+    </form>
+    <h2>Existing program stories ({stories.length})</h2>
+    {stories.length===0?<p className="admin-muted">No stories yet. Add your first story above.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Story</th><th>Program</th><th>Status</th><th>Actions</th></tr></thead><tbody>{stories.map(story=><tr key={story.id}><td><b>{story.title}</b><small>{story.publishedAt||"No date"}</small></td><td>{["Food Security","Education","Youth Entrepreneurship","Employment","Community Development","Emergency Relief"][Number(story.program)-1]}</td><td>{story.published?"Published":"Draft"}</td><td><div className="story-actions"><button type="button" className="admin-secondary" onClick={()=>editStory(story)}>Edit</button><button type="button" className="admin-danger" onClick={()=>deleteStory(story.id)} disabled={storyBusy}>Delete</button></div></td></tr>)}</tbody></table></div>}
+  </section>}
   {tab==="Media library" && <section className="admin-panel admin-media">
     <p className="admin-intro">Upload and manage approved GDOF photographs. Supported formats: JPG, PNG, WebP and GIF. Maximum file size: 8 MB.</p>
     <div className="media-upload"><label className="media-upload-button">＋ Upload image<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={uploadMedia} disabled={mediaBusy}/></label><button className="admin-secondary" type="button" onClick={loadMedia} disabled={mediaBusy}>Refresh library</button><span>{mediaFiles.length} image{mediaFiles.length===1?"":"s"}</span></div>
