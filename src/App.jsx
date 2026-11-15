@@ -6,7 +6,8 @@ const defaultPrograms = [
   ["03","Youth Entrepreneurship","Supporting promising youth-led ideas through charitable grants, mentorship and pathways to sustainable enterprise.","Ideas into action","↗"],
   ["04","Employment & Livelihoods","Helping people overcome barriers to work and build stable livelihoods through practical opportunity and support.","Economic opportunity","⌁"],
   ["05","Community Development","Working with communities and partners on locally relevant initiatives that strengthen resilience and wellbeing.","Stronger communities","◎"],
-  ["06","Emergency Relief","Coordinating responsive assistance for communities affected by emergencies and unexpected hardship.","Responsive support","＋"]
+  ["06","Emergency Relief","Coordinating responsive assistance for communities affected by emergencies and unexpected hardship.","Responsive support","＋"],
+  ["07","Animal Rescue & Welfare","Supporting responsible animal rescuers and community members who provide care, food, veterinary assistance and safe shelter to animals in need.","Compassion for animals","♡"]
 ];
 const defaultLeaders = [
   ["Wilson Maira Gikonyo","Founder & Executive Director"],
@@ -15,7 +16,7 @@ const defaultLeaders = [
   ["Samson Kibe","Secretary"],
   ["Morris Kyalo","Independent Director"]
 ];
-const programSlugs=["food-security-family-support","education-bursaries","youth-entrepreneurship","employment-livelihoods","community-development","emergency-relief"];
+const programSlugs=["food-security-family-support","education-bursaries","youth-entrepreneurship","employment-livelihoods","community-development","emergency-relief","animal-rescue-welfare"];
 const get = (content, key, fallback) => content[key] || fallback;
 
 export default function App() {
