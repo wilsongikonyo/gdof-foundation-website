@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 310">
+<rect width="1100" height="310" fill="#fff"/>
+<g fill="none" stroke="#0d2b48" stroke-width="10"><circle cx="145" cy="140" r="112"/><ellipse cx="145" cy="140" rx="58" ry="112" stroke="#256697" stroke-width="6"/><path d="M34 140h222M48 95h194M48 185h194" stroke="#256697" stroke-width="5"/></g>
+<path d="M135 92l20 8 20 40-16 22 6 50-19 35-20-50-20-35 13-37z" fill="#256697" opacity=".9"/>
+<g><circle cx="82" cy="140" r="13" fill="#1f733c"/><circle cx="145" cy="102" r="13" fill="#0d2b48"/><circle cx="208" cy="140" r="13" fill="#cc9d25"/>
+<path d="M64 165h36l11 75H52zM128 128h34l12 117h-58zM190 165h36l12 75h-59z" fill="#1f733c"/><path d="M128 128h34l12 117h-58z" fill="#0d2b48"/><path d="M190 165h36l12 75h-59z" fill="#cc9d25"/>
+<path d="M67 178l-28-29M97 178l19-28M131 145l-22-33M160 145l23-33M194 178l-20-28M223 178l28-29" stroke-width="10" stroke-linecap="round" fill="none" stroke="#1f733c"/><path d="M131 145l-22-33M160 145l23-33" stroke="#0d2b48" stroke-width="9" fill="none"/><path d="M194 178l-20-28M223 178l28-29" stroke="#cc9d25" stroke-width="10" fill="none"/></g>
+<path d="M35 260q42-44 90 0q-50 53-90 0M170 260q42-44 90 0q-50 53-90 0" fill="#1f733c"/>
+<text x="300" y="118" font-family="Arial,sans-serif" font-size="86" font-weight="700" fill="#0d2b48">GDOF</text>
+<rect x="305" y="140" width="730" height="9" rx="4" fill="#cc9d25"/>
+<text x="305" y="195" font-family="Arial,sans-serif" font-size="30" font-weight="700" fill="#0d2b48">GLOBAL DEVELOPMENT AND</text>
+<text x="305" y="235" font-family="Arial,sans-serif" font-size="30" font-weight="700" fill="#0d2b48">OPPORTUNITY FOUNDATION</text>
+<text x="305" y="280" font-family="Arial,sans-serif" font-size="24" fill="#1f733c">Empowering People. Transforming Communities.</text>
+</svg>
