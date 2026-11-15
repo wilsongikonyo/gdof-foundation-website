@@ -5,6 +5,9 @@ const roleTabs = { super_admin: ["Overview", "Website content", "Enquiries", "Do
 const roleLabels = { super_admin: "Super Admin", editor: "Editor", finance: "Finance", viewer: "Viewer" };
 const defaults = {
   tagline: "Empowering People. Transforming Communities.",
+  heroFoot: "A foundation focused on people and lasting progress.", programsIntro: "Our programs are designed around the needs people face and the potential every community holds.", governanceIntro: "GDOF is overseen by its Board of Directors, with day-to-day leadership responsible for implementing board-approved priorities.",
+  announcementEnabled: "false", announcementTitle: "", announcementText: "", announcementLinkText: "", announcementLinkUrl: "",
+  resource1Title: "", resource1Description: "", resource1Url: "", resource2Title: "", resource2Description: "", resource2Url: "", resource3Title: "", resource3Description: "", resource3Url: "",
   about: "Global Development and Opportunity Foundation (GDOF) is a Delaware-incorporated nonprofit organization working to advance human wellbeing and sustainable community development.",
   mission: "We believe lasting development begins when people have access to the support, resources and opportunities to shape their own future.",
   contactEmail: "",
@@ -79,6 +82,20 @@ export default function Admin() {
     <label>Hero introductory text<textarea rows="3" value={data.content.heroDescription||""} onChange={e=>setData({...data,content:{...data.content,heroDescription:e.target.value}})}/></label>
     <label>About the foundation<textarea rows="5" value={data.content.about||""} onChange={e=>setData({...data,content:{...data.content,about:e.target.value}})}/></label>
     <label>Mission statement<textarea rows="4" value={data.content.mission||""} onChange={e=>setData({...data,content:{...data.content,mission:e.target.value}})}/></label>
+
+    <h2>Additional homepage content</h2>
+    <label>Hero supporting line<input value={data.content.heroFoot||""} onChange={e=>setData({...data,content:{...data.content,heroFoot:e.target.value}})}/></label>
+    <label>Programs introduction<textarea rows="2" value={data.content.programsIntro||""} onChange={e=>setData({...data,content:{...data.content,programsIntro:e.target.value}})}/></label>
+    <label>Governance introduction<textarea rows="2" value={data.content.governanceIntro||""} onChange={e=>setData({...data,content:{...data.content,governanceIntro:e.target.value}})}/></label>
+    <h2>Homepage announcement</h2>
+    <label><span><input type="checkbox" checked={data.content.announcementEnabled==="true"} onChange={e=>setData({...data,content:{...data.content,announcementEnabled:e.target.checked?"true":"false"}})}/> Display announcement banner</span></label>
+    <label>Announcement heading<input value={data.content.announcementTitle||""} onChange={e=>setData({...data,content:{...data.content,announcementTitle:e.target.value}})}/></label>
+    <label>Announcement message<textarea rows="2" value={data.content.announcementText||""} onChange={e=>setData({...data,content:{...data.content,announcementText:e.target.value}})}/></label>
+    <label>Link label<input value={data.content.announcementLinkText||""} onChange={e=>setData({...data,content:{...data.content,announcementLinkText:e.target.value}})}/></label>
+    <label>Link URL (HTTPS)<input type="url" value={data.content.announcementLinkUrl||""} onChange={e=>setData({...data,content:{...data.content,announcementLinkUrl:e.target.value}})}/></label>
+    <h2>Public documents and resources</h2>
+    <p className="admin-help">Paste public HTTPS links to approved policies, annual reports or other documents hosted securely.</p>
+    {[1,2,3].map(i=><div className="admin-content-group" key={i}><h3>Resource {i}</h3><label>Title<input value={data.content["resource"+i+"Title"]||""} onChange={e=>setData({...data,content:{...data.content,["resource"+i+"Title"]:e.target.value}})}/></label><label>Description<input value={data.content["resource"+i+"Description"]||""} onChange={e=>setData({...data,content:{...data.content,["resource"+i+"Description"]:e.target.value}})}/></label><label>Public URL<input type="url" value={data.content["resource"+i+"Url"]||""} onChange={e=>setData({...data,content:{...data.content,["resource"+i+"Url"]:e.target.value}})}/></label></div>)}
     <h2>Our six programs</h2>
     {[1,2,3,4,5,6].map(i=><div className="admin-content-group" key={i}><h3>Program {String(i).padStart(2,"0")}</h3><label>Program title<input value={data.content["program"+i+"Title"]||""} onChange={e=>setData({...data,content:{...data.content,["program"+i+"Title"]:e.target.value}})}/></label><label>Program description<textarea rows="3" value={data.content["program"+i+"Description"]||""} onChange={e=>setData({...data,content:{...data.content,["program"+i+"Description"]:e.target.value}})}/></label></div>)}
     <h2>Leadership and board profiles</h2>
