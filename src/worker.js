@@ -191,7 +191,7 @@ async function adminApi(request, env, url) {
     await audit(env,user.email,"grants.radar.scanned",`Funding radar scan returned ${scanned.length} opportunities`);
     return json({ok:true,added_count:scanned.filter(item=>!previousByUrl.has(item.apply_url)).length,scan_message:scanned.length?"Scan completed. "+scanned.length+" opportunities are available.":"Scan completed. No new opportunities were returned."});
   }
-  const notificationReadMatch=path.match(/^\\/api\\/admin\\/notifications\\/([^/]+)\\/read$/);
+  const notificationReadMatch=path.match(/^\/api\/admin\/notifications\/([^/]+)\/read$/);
   if (notificationReadMatch && method==="PATCH") {
     if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can update funding notifications."},403);
     let id; try { id=decodeURIComponent(notificationReadMatch[1]); } catch { return json({error:"Invalid notification ID."},400); }
