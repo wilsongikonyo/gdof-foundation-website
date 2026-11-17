@@ -78,7 +78,8 @@ function categorySlugFromStory(story) {
 }
 async function reliefWebResearch(env,slug) {
   const p=PROGRAMS[slug];
-  const appname=env.RELIEFWEB_APPNAME||"gdof-foundation";
+  if(!env.RELIEFWEB_APPNAME) throw new Error("Set a registered RELIEFWEB_APPNAME Worker secret before using automatic research.");
+  const appname=env.RELIEFWEB_APPNAME;
   const response=await fetch("https://api.reliefweb.int/v1/reports?appname="+encodeURIComponent(appname),{
     method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({limit:6,sort:["date.created:desc"],fields:{include:["title","url","date.created","body","country","source"]},query:{value:p.query,operator:"AND"}})
