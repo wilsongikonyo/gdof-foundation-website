@@ -66,7 +66,7 @@ export default function AdminAIStudio({view="studio",onNotice=()=>{}}) {
     try{
       const asset=await upload(file);
       const current=story.media||{images:[],video:null};
-      const next=kind==="image"?{...current,images:[...(current.images||[]),asset].slice(-6)}:{...current,video:asset};
+      const next=kind==="image"?{...current,images:[asset,...(current.images||[]).slice(1)].slice(0,6)}:{...current,video:asset};
       const result=await request("/api/admin/update-story",{method:"PUT",body:JSON.stringify({id:story.id,media:next})});
       setDrafts(list=>list.map(x=>x.id===story.id?result.story:x));onNotice("Draft media updated.");
     }catch(e){setError(e.message);}finally{setUploading("");}
