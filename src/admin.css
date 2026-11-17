@@ -112,3 +112,10 @@
 @media(max-width:760px){.admin-top-actions{gap:9px}.radar-panel{position:fixed;top:76px;right:12px;width:calc(100vw - 24px);max-height:calc(100vh - 95px)}}
 
 .radar-source{color:#89958f;font-size:10px;font-weight:normal}
+
+/* Grants Radar discovery filters */
+.radar-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:13px 16px;border-bottom:1px solid #e5ece7;background:#f8faf8}
+.radar-filters label{display:flex;flex-direction:column;gap:5px;color:#647a70;font-size:10px;font-weight:700}
+.radar-filters select{width:100%;min-width:0;padding:9px 8px;border:1px solid #dbe5de;background:#fff;color:#173b36;font:11px Arial}
+.radar-filter-reset{grid-column:1/-1;justify-self:start;border:0;background:transparent;color:#1f733c;text-decoration:underline;font-size:10px;cursor:pointer;padding:2px}
+@media(max-width:560px){.radar-filters{grid-template-columns:1fr 1fr}.radar-filters label:first-child{grid-column:1/-1}}
