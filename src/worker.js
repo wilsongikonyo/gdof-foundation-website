@@ -147,49 +147,88 @@ async function adminApi(request, env, url) {
   }
   if (path==="/api/admin/notifications/scan-now" && method==="POST") {
     if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can scan funding sources."},403);
-    if (!env.GRANTS_RADAR_SCAN_URL) return json({error:"The funding scanner is not connected yet. Configure the GRANTS_RADAR_SCAN_URL Worker variable with your trusted grants research service before scanning."},503);
-    let scannerUrl;
-    try { scannerUrl=new URL(env.GRANTS_RADAR_SCAN_URL); } catch { return json({error:"GRANTS_RADAR_SCAN_URL is not a valid URL."},503); }
-    if(scannerUrl.protocol!=="https:") return json({error:"The funding scanner must use HTTPS."},503);
-    const slugs=["food-security-family-support","education-bursaries","youth-entrepreneurship","employment-livelihoods","animal-rescue-welfare","community-development","emergency-relief"];
-    let upstream;
-    try {
-      const headers={"Content-Type":"application/json"};
-      if(env.GRANTS_RADAR_SCAN_TOKEN) headers.Authorization="Bearer "+env.GRANTS_RADAR_SCAN_TOKEN;
-      const response=await fetch(scannerUrl.toString(),{method:"POST",headers,body:JSON.stringify({organization:{name:"Global Development and Opportunity Foundation, Inc.",website:"https://globaldevelopmentopportunityfoundation.org",jurisdiction:"Delaware, United States",operating_scope:"International"},program_categories:slugs,requested_fields:["title","funder","type","amount","deadline","fit_score","matched_gdof_category","eligibility_note","apply_url"],max_results:100})});
-      if(!response.ok) return json({error:"The funding scanner returned HTTP "+response.status+"."},502);
-      upstream=await response.json();
-    } catch(error) { return json({error:"Unable to reach the configured funding scanner: "+String(error.message||"network error")},502); }
-    const incoming=Array.isArray(upstream?.notifications)?upstream.notifications:[];
+    const D=db(env);
+    const categories=[
+      {slug:"food-security-family-support",label:"Food Security & Family Support",terms:["food security","food assistance","nutrition","agriculture","food systems"]},
+      {slug:"education-bursaries",label:"Education & Bursaries",terms:["education","scholarship","student support","literacy","school"]},
+      {slug:"youth-entrepreneurship",label:"Youth Entrepreneurship",terms:["youth entrepreneurship","small business","youth employment","entrepreneurship","microenterprise"]},
+      {slug:"employment-livelihoods",label:"Employment & Livelihoods",terms:["workforce development","job training","livelihood","employment","skills training"]},
+      {slug:"animal-rescue-welfare",label:"Animal Rescue & Welfare",terms:["animal welfare","animal rescue","wildlife conservation","veterinary","animal shelter"]},
+      {slug:"community-development",label:"Community Development",terms:["community development","community services","local development","housing","capacity building"]},
+      {slug:"emergency-relief",label:"Emergency Relief",terms:["disaster relief","humanitarian assistance","emergency response","crisis response","resilience"]}
+    ];
+    const searchOne=async(category,keyword)=>{
+      const response=await fetch("https://api.grants.gov/v1/api/search2",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rows:8,keyword,oppStatuses:"posted|forecasted",startRecordNum:0})});
+      if(!response.ok) throw new Error("Grants.gov search returned HTTP "+response.status);
+      const payload=await response.json();
+      if(Number(payload.errorcode)!==0) throw new Error(payload.msg||"Grants.gov search failed");
+      return (payload.data?.oppHits||[]).map(hit=>({...hit,_category:category,_keyword:keyword}));
+    };
+    const searches=await Promise.allSettled(categories.map(async category=>{
+      const query=category.terms.slice(0,3).join(" ");
+      return searchOne(category,query);
+    }));
+    const searchErrors=searches.filter(item=>item.status==="rejected").map(item=>String(item.reason?.message||"Search failed"));
+    const hits=searches.filter(item=>item.status==="fulfilled").flatMap(item=>item.value);
+    const uniqueHits=[...new Map(hits.filter(hit=>hit.id).map(hit=>[String(hit.id),hit])).values()].slice(0,40);
+    const details=await Promise.allSettled(uniqueHits.map(async hit=>{
+      const response=await fetch("https://api.grants.gov/v1/api/fetchOpportunity",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunityId:Number(hit.id)})});
+      if(!response.ok) throw new Error("Opportunity detail returned HTTP "+response.status);
+      const payload=await response.json();
+      if(Number(payload.errorcode)!==0) throw new Error(payload.msg||"Opportunity detail failed");
+      return {hit,detail:payload.data||{}};
+    }));
+    const discovered=[];
+    for(const result of details){
+      if(result.status!=="fulfilled") continue;
+      const {hit,detail}=result.value;
+      const synopsis=detail.synopsis||{};
+      const title=String(detail.opportunityTitle||hit.title||"").trim();
+      if(!title) continue;
+      const category=hit._category;
+      const titleText=title.toLowerCase();
+      const queryTerms=category.terms.flatMap(term=>term.toLowerCase().split(/\s+/));
+      const titleHits=queryTerms.filter(term=>term.length>3&&titleText.includes(term)).length;
+      const score=Math.max(35,Math.min(88,Math.round(48+titleHits*9+(String(hit.oppStatus||"").toLowerCase()==="posted"?8:0))));
+      const applicantTypes=(synopsis.applicantTypes||[]).map(item=>item.description).filter(Boolean);
+      const awardFloor=synopsis.awardFloorFormatted||synopsis.awardFloor;
+      const awardCeiling=synopsis.awardCeilingFormatted||synopsis.awardCeiling;
+      const amount=awardFloor||awardCeiling?(awardFloor&&awardCeiling?"USD "+awardFloor+"–"+awardCeiling:("USD "+(awardCeiling||awardFloor))):"Not stated in search record";
+      const closeDate=hit.closeDate||synopsis.closeDate||synopsis.responseDateDesc||"Not stated — verify on listing";
+      const applyUrl="https://www.grants.gov/search-results-detail/"+encodeURIComponent(String(hit.id));
+      const eligibility=applicantTypes.length?"Published applicant types: "+applicantTypes.join(", ")+". GDOF must confirm that an internationally operating Delaware nonprofit is eligible, including any U.S. tax-status, domestic presence, and foreign-organization restrictions.":"Applicant-type details were not available in the search response. GDOF must verify applicant eligibility, U.S. tax-status requirements, and foreign-organization restrictions in the official notice.";
+      discovered.push({
+        id:"grants-gov-"+String(hit.id),
+        type:"government",
+        title,
+        funder:String(synopsis.agencyName||hit.agencyName||"U.S. federal agency"),
+        amount:String(amount).slice(0,120),
+        deadline:String(closeDate).slice(0,100),
+        fit_score:score,
+        matched_gdof_category:category.label,
+        eligibility_note:eligibility,
+        apply_url:applyUrl,
+        source_url:applyUrl,
+        source_name:"Grants.gov",
+        read:false,
+        created_at:new Date().toISOString()
+      });
+    }
     const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='grants_radar_notifications'").first();
     let existing=[]; try { existing=JSON.parse(row?.content_value||"[]"); } catch {}
     if(!Array.isArray(existing)) existing=[];
     const previousByUrl=new Map(existing.map(item=>[item.apply_url,item]));
-    const scanned=[];
-    for(const raw of incoming.slice(0,100)){
-      const title=String(raw.title||"").trim().slice(0,240), funder=String(raw.funder||"").trim().slice(0,180);
-      let applyUrl; try { applyUrl=new URL(String(raw.apply_url||"")); } catch { continue; }
-      if(!title||!funder||applyUrl.protocol!=="https:") continue;
-      const type=["government","government_grant"].includes(String(raw.type||"").toLowerCase())?"government":"independent";
-      const prior=previousByUrl.get(applyUrl.toString());
-      scanned.push({
-        id:String(prior?.id||raw.id||crypto.randomUUID()).slice(0,100),
-        type,title,funder,
-        amount:String(raw.amount||"Not stated").slice(0,120),
-        deadline:String(raw.deadline||"Not stated").slice(0,100),
-        fit_score:Math.max(0,Math.min(100,Math.round(Number(raw.fit_score)||0))),
-        matched_gdof_category:String(raw.matched_gdof_category||"").slice(0,160),
-        eligibility_note:String(raw.eligibility_note||"Eligibility details were not supplied; verify directly with the funder.").slice(0,1200),
-        apply_url:applyUrl.toString(),
-        read:prior?Boolean(prior.read):false,
-        created_at:prior?.created_at||new Date().toISOString()
-      });
-    }
-    const scannedUrls=new Set(scanned.map(item=>item.apply_url));
-    const merged=[...scanned,...existing.filter(item=>!scannedUrls.has(item.apply_url))].slice(0,250);
+    const mergedNew=discovered.map(item=>{
+      const prior=previousByUrl.get(item.apply_url);
+      return prior?{...item,id:prior.id,read:Boolean(prior.read),created_at:prior.created_at||item.created_at}:item;
+    });
+    const foundUrls=new Set(mergedNew.map(item=>item.apply_url));
+    const merged=[...mergedNew,...existing.filter(item=>!foundUrls.has(item.apply_url))].slice(0,250);
     await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES('grants_radar_notifications',?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(merged)).run();
-    await audit(env,user.email,"grants.radar.scanned",`Funding radar scan returned ${scanned.length} opportunities`);
-    return json({ok:true,added_count:scanned.filter(item=>!previousByUrl.has(item.apply_url)).length,scan_message:scanned.length?"Scan completed. "+scanned.length+" opportunities are available.":"Scan completed. No new opportunities were returned."});
+    await audit(env,user.email,"grants.radar.scanned",`Built-in Grants.gov scan returned ${discovered.length} opportunities; ${searchErrors.length} category searches failed`);
+    const addedCount=mergedNew.filter(item=>!previousByUrl.has(item.apply_url)).length;
+    const message=discovered.length?"Grants.gov scan completed: "+discovered.length+" opportunities found.":"Grants.gov scan completed; no matching open opportunities were returned.";
+    return json({ok:true,added_count:addedCount,scan_message:message,source:"Grants.gov",search_errors:searchErrors});
   }
   const notificationReadMatch=path.match(/^\/api\/admin\/notifications\/([^/]+)\/read$/);
   if (notificationReadMatch && method==="PATCH") {
