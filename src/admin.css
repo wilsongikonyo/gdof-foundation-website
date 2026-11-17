@@ -23,3 +23,16 @@
 .story-actions>button:disabled{opacity:.55}
 
 .admin-partner-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.admin-partner-grid label{display:flex;flex-direction:column;gap:6px}.admin-partner-grid input,.admin-partner-grid select{width:100%}@media(max-width:700px){.admin-partner-grid{grid-template-columns:1fr}}
+
+/* Super Admin program directory visibility controls */
+.admin-directory-group{border:1px solid #e1e8e3;background:#fff;margin:12px 0;padding:14px 16px}
+.admin-directory-group summary{display:flex;justify-content:space-between;align-items:center;gap:14px;cursor:pointer;color:#173b36;list-style:none}
+.admin-directory-group summary::-webkit-details-marker{display:none}
+.admin-directory-group summary:after{content:"+";font-size:18px;color:#237640}
+.admin-directory-group[open] summary:after{content:"−"}
+.admin-directory-group summary span{font-size:11px;color:#718078}
+.admin-directory-group>.story-publish{margin:14px 0;padding:10px;background:#f5f8f5}
+.admin-directory-items{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 18px;padding:10px 0}
+.admin-directory-items .story-publish{font-size:12px;line-height:1.45;color:#3f5662}
+.admin-directory-items small{display:block;color:#87948d;font-size:10px}
+@media(max-width:700px){.admin-directory-items{grid-template-columns:1fr}.admin-directory-group summary{align-items:flex-start;flex-direction:column}}
