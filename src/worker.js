@@ -85,6 +85,27 @@ async function adminApi(request, env, url) {
     const content={}; for (const row of rows.results||[]) if (row.content_key!=="program_stories") content[row.content_key]=row.content_value;
     return json({role,counts:{enquiries:enquiryCount?.count||0,donations:donationCount?.count||0,admins:adminCount?.count??null},enquiries:enquiries.results||[],donations:donations.results||[],admins:admins.results||[],auditLogs:auditRows.results||[],content});
   }
+  if (path==="/api/admin/program-directory" && method==="GET") {
+    if ((user.role||"super_admin")!=="super_admin") return json({error:"Only a Super Admin can manage program directory visibility."},403);
+    const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='program_directory_visibility'").first();
+    let settings={categories:{},items:{},disclaimerVisible:true}; try { settings={...settings,...JSON.parse(row?.content_value||"{}")}; } catch {}
+    return json({settings});
+  }
+  if (path==="/api/admin/program-directory" && method==="PUT") {
+    if ((user.role||"super_admin")!=="super_admin") return json({error:"Only a Super Admin can manage program directory visibility."},403);
+    const body=await request.json().catch(()=>({})), raw=body.settings||{};
+    const slugs=["food-security-family-support","education-bursaries","youth-entrepreneurship","employment-livelihoods","animal-rescue-welfare","community-development","emergency-relief"];
+    const categories={},items={};
+    for (const slug of slugs) {
+      if (typeof raw.categories?.[slug]==="boolean") categories[slug]=raw.categories[slug];
+      const incoming=raw.items?.[slug]&&typeof raw.items[slug]==="object"?raw.items[slug]:{}; items[slug]={};
+      for (const [title,visible] of Object.entries(incoming).slice(0,100)) if (typeof title==="string"&&title.length<=240&&typeof visible==="boolean") items[slug][title]=visible;
+    }
+    const settings={categories,items,disclaimerVisible:raw.disclaimerVisible!==false};
+    await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES('program_directory_visibility',?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(settings)).run();
+    await audit(env,user.email,"program.directory.visibility.updated","Updated public program directory visibility settings");
+    return json({ok:true,settings});
+  }
   if (path==="/api/admin/partnerships" && method==="GET") {
     if (user.role!=="super_admin") return json({error:"Only a Super Admin can view partner and grant records."},403);
     const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='partnership_records'").first();
