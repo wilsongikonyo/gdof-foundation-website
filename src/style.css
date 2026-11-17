@@ -55,3 +55,21 @@
 .grants-form .ai-draft-note{font-size:11px;line-height:1.65;color:#687986;margin-top:-7px}
 
 .public-partners{padding-top:65px;padding-bottom:70px}.partner-public-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}.partner-public-card{padding:24px;border:1px solid #e0e8e1;background:#fff}.partner-public-card>small{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#237640;font-weight:700}.partner-public-card h3{font:24px Georgia,serif;color:#102d49;margin:14px 0 8px}.partner-public-card h4{font-size:13px;color:#354c5d;margin:0 0 12px}.partner-public-card p{font-size:12px;line-height:1.7;color:#687986}.partner-public-card .partner-duration{font-weight:700;color:#365b49}
+
+
+/* Program directory imported from the GDOF seven-category reference PDF */
+.program-directory-content{margin-top:28px}
+.directory-notice{padding:18px 20px;margin:0 0 22px;background:#f3f7f3;border-left:3px solid #b78632;color:#536878}
+.directory-notice strong{display:block;color:#173b36;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.directory-notice p{font-size:12px;line-height:1.75;margin:7px 0 0}
+.directory-story-card{position:relative;display:flex;gap:15px;align-items:flex-start}
+.directory-story-number{flex:0 0 34px;height:34px;display:grid;place-items:center;background:#eaf1eb;color:#1c6843;font:700 12px Arial}
+.directory-story-card>div:last-child{min-width:0}
+.directory-media-badge{display:inline-block;padding:5px 8px;background:#edf4ef;color:#21643e;font-size:9px!important;font-weight:800;letter-spacing:.07em}
+.directory-story-card h4{margin:12px 0 7px}
+.directory-story-card .directory-partner{font-size:11px;color:#526b78;margin:0 0 8px}
+.directory-story-card .directory-partner strong{color:#193c4b}
+.directory-external-link{display:inline-block;margin-top:8px;color:#176b43;font-size:11px;font-weight:800;text-decoration:underline;text-underline-offset:3px}
+.gdof-program-stories{margin-top:38px}
+.gdof-program-stories h3{font:26px Georgia,serif;color:#16384a;margin:8px 0 18px}
+@media(max-width:600px){.directory-story-card{gap:10px}.directory-story-number{flex-basis:29px;height:29px}.directory-notice{padding:15px}}
