@@ -110,3 +110,5 @@
 .radar-unread-dot{position:absolute;top:16px;right:13px;width:7px;height:7px;border-radius:50%;background:#1f733c}
 .radar-disclaimer{margin:0;padding:10px 15px 13px;border-top:1px solid #e8eee9;color:#89958f;font-size:9px;line-height:1.5}
 @media(max-width:760px){.admin-top-actions{gap:9px}.radar-panel{position:fixed;top:76px;right:12px;width:calc(100vw - 24px);max-height:calc(100vh - 95px)}}
+
+.radar-source{color:#89958f;font-size:10px;font-weight:normal}
