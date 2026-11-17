@@ -138,6 +138,74 @@ async function adminApi(request, env, url) {
   if (!user) return json({error:"Please sign in to continue."},401);
   const D=db(env);
   if (path==="/api/admin/me" && method==="GET") return json({user:{email:user.email,role:user.role||"super_admin"}});
+  if (path==="/api/admin/notifications" && method==="GET") {
+    if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can access funding notifications."},403);
+    const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='grants_radar_notifications'").first();
+    let notifications=[]; try { notifications=JSON.parse(row?.content_value||"[]"); } catch {}
+    if(!Array.isArray(notifications)) notifications=[];
+    return json({notifications,unread_count:notifications.filter(item=>!item.read).length});
+  }
+  if (path==="/api/admin/notifications/scan-now" && method==="POST") {
+    if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can scan funding sources."},403);
+    if (!env.GRANTS_RADAR_SCAN_URL) return json({error:"The funding scanner is not connected yet. Configure the GRANTS_RADAR_SCAN_URL Worker variable with your trusted grants research service before scanning."},503);
+    let scannerUrl;
+    try { scannerUrl=new URL(env.GRANTS_RADAR_SCAN_URL); } catch { return json({error:"GRANTS_RADAR_SCAN_URL is not a valid URL."},503); }
+    if(scannerUrl.protocol!=="https:") return json({error:"The funding scanner must use HTTPS."},503);
+    const slugs=["food-security-family-support","education-bursaries","youth-entrepreneurship","employment-livelihoods","animal-rescue-welfare","community-development","emergency-relief"];
+    let upstream;
+    try {
+      const headers={"Content-Type":"application/json"};
+      if(env.GRANTS_RADAR_SCAN_TOKEN) headers.Authorization="Bearer "+env.GRANTS_RADAR_SCAN_TOKEN;
+      const response=await fetch(scannerUrl.toString(),{method:"POST",headers,body:JSON.stringify({organization:{name:"Global Development and Opportunity Foundation, Inc.",website:"https://globaldevelopmentopportunityfoundation.org",jurisdiction:"Delaware, United States",operating_scope:"International"},program_categories:slugs,requested_fields:["title","funder","type","amount","deadline","fit_score","matched_gdof_category","eligibility_note","apply_url"],max_results:100})});
+      if(!response.ok) return json({error:"The funding scanner returned HTTP "+response.status+"."},502);
+      upstream=await response.json();
+    } catch(error) { return json({error:"Unable to reach the configured funding scanner: "+String(error.message||"network error")},502); }
+    const incoming=Array.isArray(upstream?.notifications)?upstream.notifications:[];
+    const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='grants_radar_notifications'").first();
+    let existing=[]; try { existing=JSON.parse(row?.content_value||"[]"); } catch {}
+    if(!Array.isArray(existing)) existing=[];
+    const previousByUrl=new Map(existing.map(item=>[item.apply_url,item]));
+    const scanned=[];
+    for(const raw of incoming.slice(0,100)){
+      const title=String(raw.title||"").trim().slice(0,240), funder=String(raw.funder||"").trim().slice(0,180);
+      let applyUrl; try { applyUrl=new URL(String(raw.apply_url||"")); } catch { continue; }
+      if(!title||!funder||applyUrl.protocol!=="https:") continue;
+      const type=["government","government_grant"].includes(String(raw.type||"").toLowerCase())?"government":"independent";
+      const prior=previousByUrl.get(applyUrl.toString());
+      scanned.push({
+        id:String(prior?.id||raw.id||crypto.randomUUID()).slice(0,100),
+        type,title,funder,
+        amount:String(raw.amount||"Not stated").slice(0,120),
+        deadline:String(raw.deadline||"Not stated").slice(0,100),
+        fit_score:Math.max(0,Math.min(100,Math.round(Number(raw.fit_score)||0))),
+        matched_gdof_category:String(raw.matched_gdof_category||"").slice(0,160),
+        eligibility_note:String(raw.eligibility_note||"Eligibility details were not supplied; verify directly with the funder.").slice(0,1200),
+        apply_url:applyUrl.toString(),
+        read:prior?Boolean(prior.read):false,
+        created_at:prior?.created_at||new Date().toISOString()
+      });
+    }
+    const scannedUrls=new Set(scanned.map(item=>item.apply_url));
+    const merged=[...scanned,...existing.filter(item=>!scannedUrls.has(item.apply_url))].slice(0,250);
+    await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES('grants_radar_notifications',?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(merged)).run();
+    await audit(env,user.email,"grants.radar.scanned",`Funding radar scan returned ${scanned.length} opportunities`);
+    return json({ok:true,added_count:scanned.filter(item=>!previousByUrl.has(item.apply_url)).length,scan_message:scanned.length?"Scan completed. "+scanned.length+" opportunities are available.":"Scan completed. No new opportunities were returned."});
+  }
+  const notificationReadMatch=path.match(/^\\/api\\/admin\\/notifications\\/([^/]+)\\/read$/);
+  if (notificationReadMatch && method==="PATCH") {
+    if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can update funding notifications."},403);
+    let id; try { id=decodeURIComponent(notificationReadMatch[1]); } catch { return json({error:"Invalid notification ID."},400); }
+    const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='grants_radar_notifications'").first();
+    let notifications=[]; try { notifications=JSON.parse(row?.content_value||"[]"); } catch {}
+    if(!Array.isArray(notifications)) notifications=[];
+    const target=notifications.find(item=>item.id===id);
+    if(!target) return json({error:"Funding notification not found."},404);
+    if(!target.read){
+      target.read=true;
+      await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES('grants_radar_notifications',?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(notifications)).run();
+    }
+    return json({ok:true,id,unread_count:notifications.filter(item=>!item.read).length});
+  }
   if (path==="/api/admin/data" && method==="GET") {
     const role=user.role||"super_admin";
     const [enquiries,donations,admins,rows,auditRows,enquiryCount,donationCount,adminCount]=await Promise.all([
