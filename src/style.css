@@ -73,3 +73,7 @@
 .gdof-program-stories{margin-top:38px}
 .gdof-program-stories h3{font:26px Georgia,serif;color:#16384a;margin:8px 0 18px}
 @media(max-width:600px){.directory-story-card{gap:10px}.directory-story-number{flex-basis:29px;height:29px}.directory-notice{padding:15px}}
+
+/* Quiet clarification at the end of the external program directory */
+.directory-footnote{margin:28px 0 0;text-align:right;font-size:10px;line-height:1.6;color:#9aa6a0;font-weight:400;letter-spacing:.01em}
+@media(max-width:600px){.directory-footnote{text-align:left;font-size:9px}}
