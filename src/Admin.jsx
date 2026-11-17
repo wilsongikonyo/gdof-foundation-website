@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import "./admin.css";
 import { programDirectory } from "./programDirectory.js";
+import AdminAIStudio from "./AdminAIStudio.jsx";
 
-const roleTabs = { super_admin: ["Overview", "Website content", "Program directory", "Program stories", "Partners & grants", "Media library", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Program stories", "Media library", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
+const roleTabs = { super_admin: ["Overview", "Website content", "AI Story Studio", "Pending Approval", "Program directory", "Program stories", "Partners & grants", "Media library", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Program stories", "Media library", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
 const roleLabels = { super_admin: "Super Admin", editor: "Editor", finance: "Finance", viewer: "Viewer" };
 const defaults = {
   tagline: "Empowering People. Transforming Communities.",
@@ -201,6 +202,8 @@ export default function Admin() {
     <button disabled={busy}>{busy?"Saving…":"Save and publish website content"}</button>
     <p className="admin-help">Changes are stored in the GDOF database and displayed on the public homepage after saving. Images and the remaining design sections are not yet editable here.</p>
   </form>}
+  {tab==="AI Story Studio" && user.role==="super_admin" && <AdminAIStudio view="studio" onNotice={setNotice}/>}
+  {tab==="Pending Approval" && user.role==="super_admin" && <AdminAIStudio view="queue" onNotice={setNotice}/>}
   {tab==="Program directory" && user.role==="super_admin" && <section className="admin-panel admin-directory">
     <p className="admin-intro">Control which external reference initiatives appear on the public website. Hidden entries are not deleted and can be restored at any time.</p>
     <div className="admin-content-group"><h2>Directory disclaimer</h2><label className="story-publish"><input type="checkbox" checked={directorySettings.disclaimerVisible!==false} onChange={e=>setDirectorySettings(current=>({...current,disclaimerVisible:e.target.checked}))}/> Show the discreet note explaining that these are external examples aligned with GDOF goals, not GDOF projects</label></div>
