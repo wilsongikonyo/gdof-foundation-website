@@ -70,3 +70,43 @@
 .media-card video{display:block;width:100%;height:160px;object-fit:cover;background:#101714}
 
 .pexels-credit{font-size:11px;color:#66766d;margin:10px 0}.pexels-credit a{color:#176a3b;text-decoration:underline;font-weight:700}
+
+
+/* Grants & Funding Radar notification drawer */
+.admin-top-actions{display:flex;align-items:center;gap:18px}
+.radar-wrap{position:relative}
+.radar-bell{position:relative;width:42px;height:42px;display:grid;place-items:center;border:1px solid #dce7df;border-radius:50%;background:#fff;color:#173b36;cursor:pointer}
+.radar-bell svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.radar-count{position:absolute;top:-5px;right:-6px;min-width:19px;height:19px;padding:0 5px;display:grid;place-items:center;border:2px solid #f5f7f5;border-radius:20px;background:#b43d36;color:#fff;font-size:10px;font-weight:bold}
+.radar-panel{position:absolute;z-index:50;top:52px;right:0;width:min(440px,calc(100vw - 32px));max-height:min(78vh,760px);display:flex;flex-direction:column;overflow:hidden;border:1px solid #dce6df;border-radius:14px;background:#fff;box-shadow:0 18px 55px rgba(13,43,72,.2)}
+.radar-panel-head{display:flex;align-items:center;justify-content:space-between;padding:17px 18px;border-bottom:1px solid #e8eee9}
+.radar-panel-head strong{display:block;color:#0d2b48;font:18px Georgia}
+.radar-panel-head small{display:block;margin-top:5px;color:#778980;font-size:11px}
+.radar-panel-head>button{width:30px;height:30px;border:0;border-radius:50%;background:#f1f5f1;color:#385448;font-size:20px;cursor:pointer}
+.radar-scan{display:flex;align-items:center;justify-content:center;gap:9px;margin:13px 15px;padding:12px;border:0;border-radius:7px;background:#1f733c;color:white;font-size:12px;font-weight:bold;cursor:pointer}
+.radar-scan:disabled{opacity:.65;cursor:wait}
+.radar-scan>span{font-size:17px;line-height:12px}
+.radar-spinner{display:inline-block;animation:radar-spin 1s linear infinite}
+@keyframes radar-spin{to{transform:rotate(360deg)}}
+.radar-error{margin:0 15px 10px;padding:10px;border-radius:6px;background:#fff4df;color:#79570b;font-size:11px;line-height:1.5}
+.radar-list{overflow:auto;padding:0 13px 12px}
+.radar-empty{padding:28px 15px;text-align:center;color:#788981;font-size:12px;line-height:1.6}
+.radar-card{position:relative;margin:0 0 11px;padding:14px;border:1px solid #e3ebe5;border-radius:9px;background:#fff}
+.radar-card.is-unread{border-left:3px solid #1f733c;background:#fbfdfb}
+.radar-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.radar-type{padding:5px 7px;border-radius:20px;font-size:9px;font-weight:bold}
+.radar-type.government{background:#e8f0fb;color:#28578b}
+.radar-type.independent{background:#f3edf9;color:#704c91}
+.radar-score{color:#1f733c;font-size:10px;font-weight:bold;white-space:nowrap}
+.radar-card h3{margin:11px 0 4px;color:#0d2b48;font:17px Georgia;line-height:1.35}
+.radar-funder{margin:0 0 11px;color:#64776f;font-size:11px}
+.radar-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:9px 0;border-top:1px solid #edf1ed;border-bottom:1px solid #edf1ed}
+.radar-meta span{display:flex;flex-direction:column;gap:4px;color:#243e4d;font-size:11px}
+.radar-meta b{color:#829088;font-size:9px;text-transform:uppercase;letter-spacing:.6px}
+.radar-category{margin:10px 0 6px;color:#285d42;font-size:10px;font-weight:bold}
+.radar-eligibility{margin:0 0 12px;color:#64766f;font-size:11px;line-height:1.55}
+.radar-apply{display:inline-flex;padding:9px 11px;border-radius:6px;background:#0d2b48;color:white;text-decoration:none;font-size:10px;font-weight:bold}
+.radar-apply:hover{background:#1f733c}
+.radar-unread-dot{position:absolute;top:16px;right:13px;width:7px;height:7px;border-radius:50%;background:#1f733c}
+.radar-disclaimer{margin:0;padding:10px 15px 13px;border-top:1px solid #e8eee9;color:#89958f;font-size:9px;line-height:1.5}
+@media(max-width:760px){.admin-top-actions{gap:9px}.radar-panel{position:fixed;top:76px;right:12px;width:calc(100vw - 24px);max-height:calc(100vh - 95px)}}
