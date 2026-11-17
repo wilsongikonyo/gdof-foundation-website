@@ -87,8 +87,9 @@ async function publicWebResearch(env,slug) {
   for(const item of payload.output||[]) for(const part of item.content||[]) if(part.type==="output_text"){textParts.push(part.text||"");for(const annotation of part.annotations||[]) if(annotation.url)sources.push({title:annotation.title||annotation.url,url:annotation.url});}
   const brief=(payload.output_text||textParts.join("\n")).trim();
   if(!brief) throw new Error("Public web search returned no usable research. Please retry or use the manual research option.");
-  const unique=[...new Map(sources.map(x=>[x.url,x])).values()].slice(0,10);
-  return [{title:"AI public web research brief",url:unique[0]?.url||"https://www.un.org/",date:new Date().toISOString().slice(0,10),source:"OpenAI web search",excerpt:brief.slice(0,12000)},...unique.slice(1).map(x=>({title:x.title,url:x.url,date:"",source:"Public web search",excerpt:"Source discovered during web research."}))];
+  const unique=[...new Map(sources.filter(x=>/^https:\/\//i.test(x.url)).map(x=>[x.url,x])).values()].slice(0,10);
+  if(!unique.length) throw new Error("Public web research returned no direct source links. Please retry; no unsourced story was created.");
+  return [{title:"AI public web research brief",url:unique[0].url,date:new Date().toISOString().slice(0,10),source:"OpenAI web search",excerpt:brief.slice(0,12000)},...unique.slice(1).map(x=>({title:x.title,url:x.url,date:"",source:"Public web search",excerpt:"Source discovered during web research."}))];
 }
 async function reliefWebResearch(env,slug) {
   const p=PROGRAMS[slug];
@@ -341,9 +342,10 @@ async function adminApi(request, env, url) {
     if (!PROGRAMS[slug]) return json({error:"Choose one of the seven GDOF programme categories."},400);
     const research=await publicWebResearch(env,slug);
     if (!research.length) return json({error:"No relevant ReliefWeb source records were found. No draft was created."},422);
-    const media=await pexelsMedia(env,PROGRAMS[slug].query);
-    const draft=await draftWithOpenAI(env,{slug,research});
-    const story={id:crypto.randomUUID(),category_slug:slug,program:PROGRAMS[slug].number,generation_mode:"auto",title:draft.title,summary:draft.summary,body:draft.full_story,full_story:draft.full_story,media,images:media.images,video_url:media.video.url,video_source:media.video.source,external_reference_url:research[0].url,research_sources:research.map(x=>({title:x.title,url:x.url,date:x.date,source:x.source})),status:"PENDING_APPROVAL",published:false,created_at:new Date().toISOString(),approved_at:null,created_by:user.email};
+    let media={images:[],video:null};
+    try { media=await pexelsMedia(env,PROGRAMS[slug].query); } catch(mediaError) { await audit(env,user.email,"story.media.fallback_unavailable",String(mediaError.message||"Pexels unavailable").slice(0,300)); }
+    const draft=await draftWithOpenAI(env,{slug,research,media});
+    const story={id:crypto.randomUUID(),category_slug:slug,program:PROGRAMS[slug].number,generation_mode:"auto",title:draft.title,summary:draft.summary,body:draft.full_story,full_story:draft.full_story,media,images:media.images||[],video_url:media.video?.url||"",video_source:media.video?.source||"none",external_reference_url:research[0].url,research_sources:research.map(x=>({title:x.title,url:x.url,date:x.date,source:x.source})),status:"PENDING_APPROVAL",published:false,created_at:new Date().toISOString(),approved_at:null,created_by:user.email};
     const stories=await readStories(D); stories.unshift(story); await writeStories(D,stories);
     await audit(env,user.email,"story.ai.generated",story.id);
     return json({ok:true,story});
