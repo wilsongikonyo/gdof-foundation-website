@@ -265,6 +265,7 @@ async function adminApi(request, env, url) {
     if(!id||!["approve","reject"].includes(action)) return json({error:"A story ID and valid action are required."},400);
     const stories=await readStories(D), index=stories.findIndex(x=>x.id===id);
     if(index<0) return json({error:"Story draft not found."},404);
+    if(stories[index].status!=="PENDING_APPROVAL") return json({error:"Only pending stories can be approved or rejected from this queue."},409);
     if(action==="reject") {
       stories.splice(index,1); await writeStories(D,stories); await audit(env,user.email,"story.rejected",id);
       return json({ok:true,deleted:true});
@@ -279,7 +280,7 @@ async function adminApi(request, env, url) {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage program stories."},403);
     const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='program_stories'").first();
     let stories=[]; try { stories=JSON.parse(row?.content_value||"[]"); } catch {}
-    return json({stories:Array.isArray(stories)?stories:[]});
+    return json({stories:Array.isArray(stories)?stories.filter(x=>!x.generation_mode):[]});
   }
   if (path==="/api/admin/stories" && method==="PUT") {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage program stories."},403);
@@ -319,6 +320,7 @@ published:false,
     const files = (listed.objects||[]).map(object => ({
       key:object.key,
       size:object.size,
+      mediaType:object.customMetadata?.mediaType||"image",
       uploaded:object.uploaded,
       url:"/media/"+object.key.split("/").map(encodeURIComponent).join("/")
     }));
@@ -345,7 +347,7 @@ published:false,
   }
   const mediaDelete = path.match(/^\/api\/admin\/media\/(.+)$/);
   if (mediaDelete && method==="DELETE") {
-    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot delete media."},403);
+    if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can delete media."},403);
     if (!env.GDOF_MEDIA) return json({error:"Media storage is not configured."},503);
     let key; try { key=decodeURIComponent(mediaDelete[1]); } catch { return json({error:"Invalid media key."},400); }
     if (!key.startsWith("uploads/") || key.includes("..") || key.includes("\\")) return json({error:"Invalid media key."},400);
