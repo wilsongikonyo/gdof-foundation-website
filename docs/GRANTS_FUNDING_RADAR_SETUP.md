@@ -1,66 +1,43 @@
-# GDOF Grants & Funding Radar setup
+# GDOF Grants & Funding Radar
 
-The Super Admin radar UI and authenticated notification endpoints are implemented in the website Worker. Notifications are stored in the existing D1 `site_content` table under `grants_radar_notifications`; no schema migration is required.
+The Grants & Funding Radar is being moved to a built-in scanner inside the GDOF Cloudflare Worker. No separate `GRANTS_RADAR_SCAN_URL` or `GRANTS_RADAR_SCAN_TOKEN` is required for the built-in Grants.gov adapter.
+
+## Current built-in source
+
+### U.S. Grants.gov
+
+The scanner searches the public Grants.gov Applicant API using its unauthenticated `search2` and `fetchOpportunity` endpoints. It searches terms related to all seven GDOF programme categories, retrieves opportunity details, and records the official Grants.gov opportunity link.
+
+Official API documentation:
+- Search: https://www.grants.gov/api/common/search2
+- Fetch opportunity: https://grants.gov/api/common/fetchopportunity
+- API guide: https://www.grants.gov/api/api-guide
+
+The API currently does not require a key for `search2` or `fetchOpportunity`. No new Cloudflare secrets are required for this source.
 
 ## Endpoints
 
 - `GET /api/admin/notifications` — returns `{ notifications, unread_count }`.
-- `POST /api/admin/notifications/scan-now` — asks the configured scanner service to discover and score current opportunities, then stores the normalized results.
+- `POST /api/admin/notifications/scan-now` — scans the built-in source adapters and stores normalized results.
 - `PATCH /api/admin/notifications/:id/read` — marks one notification as read.
 
-All three endpoints require a valid authenticated Super Admin session. Other administrator roles receive HTTP 403.
+All three endpoints require a valid authenticated Super Admin session. Other administrator roles receive HTTP 403. Results are stored in the existing D1 `site_content` table under `grants_radar_notifications`; no schema migration is required.
 
-## Connect a funding research scanner
+## What the match score means
 
-The website Worker deliberately does not invent funding opportunities or treat ReliefWeb as a grant database. To run live scans, connect a trusted scanner service that searches official government grant portals and independent/private foundation funding pages, checks current deadlines and eligibility, and returns sourced results.
+The current Grants.gov score is a preliminary keyword relevance score based on programme/category wording and listing status. It is not an AI legal eligibility determination, an award prediction, or confirmation that GDOF may apply. The eligibility note asks the reviewer to check the official notice, including foreign-organization, U.S. tax-status, geographic, partnership, and applicant-type restrictions.
 
-Configure these Worker values:
+## Important source coverage limitation
 
-- `GRANTS_RADAR_SCAN_URL` — HTTPS URL of the scanner service endpoint.
-- `GRANTS_RADAR_SCAN_TOKEN` — optional bearer token used to authenticate requests to that service.
+There is no single comprehensive public API for independent/private foundation grants. The current built-in adapter searches Grants.gov (U.S. federal government opportunities). Independent/private foundation sources need separate official publisher feeds or public APIs, each checked for access terms, open/closed status, application URL, geography, and applicant restrictions before being added. Do not label a private opportunity as open or suitable based only on a third-party directory or an old article.
 
-From Windows PowerShell, use `npx.cmd` (rather than `npx`) if PowerShell blocks the `npx.ps1` script:
+A future adapter can use an official foundation API/RSS feed or a carefully maintained list of funder opportunity pages. If a funder has no feed/API, automated page extraction must respect its terms, robots rules, rate limits, and source-link attribution.
 
-```powershell
-npx.cmd wrangler secret put GRANTS_RADAR_SCAN_URL
-npx.cmd wrangler secret put GRANTS_RADAR_SCAN_TOKEN
-```
+## Data quality rules
 
-Enter the scanner URL/token when Wrangler prompts. Do not paste tokens into chat, source files, or GitHub commits. Redeploy the Worker after setting the values if Wrangler does not automatically deploy the secret update.
-
-## Scanner request
-
-The Worker sends a JSON POST containing GDOF's organization profile, the seven programme slugs, requested fields, and a maximum result count. If configured, it sends `Authorization: Bearer <GRANTS_RADAR_SCAN_TOKEN>`.
-
-## Required scanner response
-
-Return JSON in this shape:
-
-```json
-{
-  "notifications": [
-    {
-      "title": "Name of the funding opportunity",
-      "funder": "Official funder name",
-      "type": "government",
-      "amount": "Up to USD 50,000",
-      "deadline": "2027-02-15",
-      "fit_score": 86,
-      "matched_gdof_category": "Youth Entrepreneurship",
-      "eligibility_note": "Explain the published eligibility criteria and any unresolved conditions for GDOF.",
-      "apply_url": "https://official-funder.example/apply"
-    }
-  ]
-}
-```
-
-Use `type: "government"` for government grants. Use `type: "independent"` for independent/private foundation funds. The Worker accepts only HTTPS application URLs, limits scores to 0–100, preserves read state for existing matching application URLs, and stores up to 250 notifications.
-
-## Important eligibility and editorial safeguards
-
-- The scanner must use current, authoritative funder pages and retain evidence/source URLs in its own research records.
-- A fit score is a relevance estimate, not an eligibility decision or award prediction.
-- The eligibility note must disclose restrictions such as geography, applicant type, nonprofit/tax status, registration, matching funds, and deadlines.
-- Do not assume GDOF has IRS 501(c)(3) recognition or that Delaware incorporation alone qualifies it for every US or international grant.
-- Do not create or display invented opportunities. If no verified results are found, return an empty `notifications` array.
-- The radar is Super Admin-only. Clicking an application link opens it in a new tab and marks that notification as read.
+- Only HTTPS application links are stored.
+- Missing amount or deadline values are shown as not stated rather than guessed.
+- The scanner does not create grant opportunities or auto-apply.
+- Verify every opportunity on its official funder page before preparing an application.
+- A Delaware incorporation certificate alone does not establish eligibility for every U.S. or international grant. GDOF must accurately represent its IRS recognition/tax status and operational registrations.
+- A match score is a screening aid only; Super Admin review remains required.
