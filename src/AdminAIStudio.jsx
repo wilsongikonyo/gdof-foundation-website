@@ -32,7 +32,6 @@ export default function AdminAIStudio({view="studio",onNotice=()=>{}}) {
   const [drafts,setDrafts]=useState([]);
   const [editing,setEditing]=useState({});
   const [uploading,setUploading]=useState("");
-  const [expanded,setExpanded]=useState("");
   const [refreshing,setRefreshing]=useState(false);
   const isQueue=view==="queue";
   const categoryName=useMemo(()=>categories.find(x=>x[0]===category)?.[1]||category,[category]);
