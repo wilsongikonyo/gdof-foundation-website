@@ -437,7 +437,7 @@ export default {
       if(!env.GDOF_DB) return json({stories:[]});
       try {
         const all=await readStories(env.GDOF_DB);
-        const stories=all.filter(s=>s.status==="PUBLISHED"&&categorySlugFromStory(s)===slug).map(s=>({id:s.id,category_slug:slug,title:s.title,summary:s.summary,full_story:s.full_story||s.body,media:s.media||{images:s.images||[],video:s.video_url?{url:s.video_url,source:s.video_source||"none"}:null},images:s.images||s.media?.images||[],video_url:s.video_url||s.media?.video?.url||"",external_reference_url:s.external_reference_url||"",created_at:s.created_at,approved_at:s.approved_at}));
+        const stories=all.filter(s=>s.status==="PUBLISHED"&&categorySlugFromStory(s)===slug).map(s=>({id:s.id,category_slug:slug,program:PROGRAMS[slug].number,published:true,imageUrl:(s.images||s.media?.images||[])[0]?.url||"",imageAlt:(s.images||s.media?.images||[])[0]?.caption||s.title,caption:(s.images||s.media?.images||[])[0]?.caption||"",body:s.full_story||s.body,publishedAt:s.approved_at||s.created_at,title:s.title,summary:s.summary,full_story:s.full_story||s.body,media:s.media||{images:s.images||[],video:s.video_url?{url:s.video_url,source:s.video_source||"none"}:null},images:s.images||s.media?.images||[],video_url:s.video_url||s.media?.video?.url||"",external_reference_url:s.external_reference_url||"",created_at:s.created_at,approved_at:s.approved_at}));
         return json({category:{slug,label:PROGRAMS[slug].label},stories});
       } catch { return json({stories:[]}); }
     }
