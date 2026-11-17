@@ -36,7 +36,7 @@ export default function AdminAIStudio({view="studio",onNotice=()=>{}}) {
   const [refreshing,setRefreshing]=useState(false);
   const isQueue=view==="queue";
   const categoryName=useMemo(()=>categories.find(x=>x[0]===category)?.[1]||category,[category]);
-  const loadQueue=async()=>{setRefreshing(true);try{const r=await request("/api/admin/stories");setDrafts((r.stories||[]).filter(x=>x.status==="PENDING_APPROVAL"));}catch(e){setError(e.message);}finally{setRefreshing(false);}};
+  const loadQueue=async()=>{setRefreshing(true);try{const r=await request("/api/admin/pending-stories");setDrafts(r.stories||[]);}catch(e){setError(e.message);}finally{setRefreshing(false);}};
   useEffect(()=>{if(isQueue)loadQueue();},[isQueue]);
   const generate=async mode=>{
     setBusy(true);setError("");onNotice("");
