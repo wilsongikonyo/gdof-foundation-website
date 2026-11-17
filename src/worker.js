@@ -80,7 +80,7 @@ async function reliefWebResearch(env,slug) {
   const p=PROGRAMS[slug];
   if(!env.RELIEFWEB_APPNAME) throw new Error("Set a registered RELIEFWEB_APPNAME Worker secret before using automatic research.");
   const appname=env.RELIEFWEB_APPNAME;
-  const response=await fetch("https://api.reliefweb.int/v1/reports?appname="+encodeURIComponent(appname),{
+  const response=await fetch("https://api.reliefweb.int/v2/reports?appname="+encodeURIComponent(appname),{
     method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({limit:6,sort:["date.created:desc"],fields:{include:["title","url","date.created","body","country","source"]},query:{value:p.query,operator:"AND"}})
   });
@@ -94,7 +94,7 @@ async function pexelsMedia(env,query) {
   const headers={Authorization:env.PEXELS_API_KEY};
   const [photosRes,videosRes]=await Promise.all([
     fetch("https://api.pexels.com/v1/search?"+new URLSearchParams({query,per_page:"3",orientation:"landscape"}),{headers}),
-    fetch("https://api.pexels.com/videos/search?"+new URLSearchParams({query,per_page:"1",orientation:"landscape"}),{headers})
+    fetch("https://api.pexels.com/v1/videos/search?"+new URLSearchParams({query,per_page:"1",orientation:"landscape"}),{headers})
   ]);
   if(!photosRes.ok||!videosRes.ok) throw new Error("Pexels could not provide the requested media.");
   const [photos,videos]=await Promise.all([photosRes.json(),videosRes.json()]);
@@ -110,7 +110,7 @@ async function draftWithOpenAI(env,{slug,notes,research,media}) {
   const user=notes
     ? "Create an editorial draft from these Super Admin field notes. Treat only the notes as facts; identify unverified items as [VERIFY]. Do not imply the idea has already happened. Category: "+category.label+". Notes: "+notes
     : "Create a concise, source-grounded external initiative profile relevant to GDOF's category "+category.label+". It is NOT a GDOF project. Use only the source material below. Do not infer unreported impact or attribute work to GDOF. Cite source names, dates and links in the full story where available. Research records: "+JSON.stringify(research);
-  const response=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+env.OPENAI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({model:env.OPENAI_MODEL||"gpt-4.1-mini",response_format:{type:"json_object"},messages:[{role:"system",content:system},{role:"user",content:user}],temperature:0.2})});
+  const response=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+env.OPENAI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({model:env.OPENAI_MODEL||"gpt-4.1-mini",response_format:{type:"json_schema",json_schema:{name:"gdof_story",strict:true,schema:{type:"object",additionalProperties:false,properties:{title:{type:"string"},summary:{type:"string"},full_story:{type:"string"}},required:["title","summary","full_story"]}}},messages:[{role:"system",content:system},{role:"user",content:user}],temperature:0.2})});
   if(!response.ok) throw new Error("OpenAI content generation failed with HTTP "+response.status+".");
   const payload=await response.json();
   let parsed; try { parsed=JSON.parse(payload.choices?.[0]?.message?.content||"{}"); } catch { throw new Error("AI returned an unreadable story draft. Please retry."); }
