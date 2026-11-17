@@ -76,6 +76,20 @@ function categorySlugFromStory(story) {
   const number=String(story.program||"");
   return Object.entries(PROGRAMS).find(([,v])=>v.number===number)?.[0]||"";
 }
+async function publicWebResearch(env,slug) {
+  if(!env.OPENAI_API_KEY) throw new Error("OpenAI is not configured. Add OPENAI_API_KEY to the Worker secrets.");
+  const category=PROGRAMS[slug];
+  const prompt="Research recent, verifiable public information relevant to the GDOF programme category: "+category.label+". Search across authoritative public sources, prioritising UN agencies, government departments, established international organisations, universities and reputable foundations. Find 3-6 useful sources. Return a concise factual research brief with source titles, publishers, publication dates, countries and direct URLs. Clearly distinguish an external programme or reported need from GDOF activity. Never claim GDOF delivered or partnered in any activity. Do not invent facts. Prefer sources published in the last 3 years where possible; state dates. Search themes: "+category.query+".";
+  const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{Authorization:"Bearer "+env.OPENAI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({model:env.OPENAI_RESEARCH_MODEL||"gpt-4.1-mini",tools:[{type:"web_search"}],input:prompt})});
+  if(!response.ok) throw new Error("Public web research failed with HTTP "+response.status+". Check the OpenAI API key and model access.");
+  const payload=await response.json();
+  const textParts=[],sources=[];
+  for(const item of payload.output||[]) for(const part of item.content||[]) if(part.type==="output_text"){textParts.push(part.text||"");for(const annotation of part.annotations||[]) if(annotation.url)sources.push({title:annotation.title||annotation.url,url:annotation.url});}
+  const brief=(payload.output_text||textParts.join("\n")).trim();
+  if(!brief) throw new Error("Public web search returned no usable research. Please retry or use the manual research option.");
+  const unique=[...new Map(sources.map(x=>[x.url,x])).values()].slice(0,10);
+  return [{title:"AI public web research brief",url:unique[0]?.url||"https://www.un.org/",date:new Date().toISOString().slice(0,10),source:"OpenAI web search",excerpt:brief.slice(0,12000)},...unique.slice(1).map(x=>({title:x.title,url:x.url,date:"",source:"Public web search",excerpt:"Source discovered during web research."}))];
+}
 async function reliefWebResearch(env,slug) {
   const p=PROGRAMS[slug];
   if(!env.RELIEFWEB_APPNAME) throw new Error("Set a registered RELIEFWEB_APPNAME Worker secret before using automatic research.");
@@ -212,6 +226,8 @@ async function adminApi(request, env, url) {
         apply_url:applyUrl,
         source_url:applyUrl,
         source_name:"Grants.gov",
+        country:"United States",
+        continent:"North America",
         read:false,
         created_at:new Date().toISOString()
       });
@@ -323,7 +339,7 @@ async function adminApi(request, env, url) {
     if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can generate AI stories."},403);
     const body=await request.json().catch(()=>({})), slug=String(body.category_slug||"");
     if (!PROGRAMS[slug]) return json({error:"Choose one of the seven GDOF programme categories."},400);
-    const research=await reliefWebResearch(env,slug);
+    const research=await publicWebResearch(env,slug);
     if (!research.length) return json({error:"No relevant ReliefWeb source records were found. No draft was created."},422);
     const media=await pexelsMedia(env,PROGRAMS[slug].query);
     const draft=await draftWithOpenAI(env,{slug,research});
@@ -349,6 +365,20 @@ async function adminApi(request, env, url) {
     const stories=await readStories(D); stories.unshift(story); await writeStories(D,stories);
     await audit(env,user.email,"story.ai.generated_from_notes",story.id);
     return json({ok:true,story});
+  }
+  if (path==="/api/admin/verify-story-reliefweb" && method==="POST") {
+    if(!onlySuperAdmin(user)) return json({error:"Only a Super Admin can verify story sources."},403);
+    if(!env.RELIEFWEB_APPNAME) return json({error:"ReliefWeb is optional and is not configured yet. Add RELIEFWEB_APPNAME to enable this verification."},503);
+    const body=await request.json().catch(()=>({})), id=String(body.id||"");
+    const stories=await readStories(D), index=stories.findIndex(x=>x.id===id);
+    if(index<0) return json({error:"Story draft not found."},404);
+    const story=stories[index], slug=categorySlugFromStory(story);
+    if(!slug) return json({error:"The draft does not have a recognised GDOF programme category."},400);
+    const matches=await reliefWebResearch(env,slug);
+    story.reliefweb_verification={checked_at:new Date().toISOString(),status:matches.length?"matches_found":"no_matches",sources:matches};
+    stories[index]=story; await writeStories(D,stories);
+    await audit(env,user.email,"story.reliefweb.verified",id);
+    return json({ok:true,verification:story.reliefweb_verification});
   }
   if (path==="/api/admin/update-story" && method==="PUT") {
     if(!onlySuperAdmin(user)) return json({error:"Only a Super Admin can edit pending AI stories."},403);
