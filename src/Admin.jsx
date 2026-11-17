@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import "./admin.css";
+import { programDirectory } from "./programDirectory.js";
 
-const roleTabs = { super_admin: ["Overview", "Website content", "Program stories", "Partners & grants", "Media library", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Program stories", "Media library", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
+const roleTabs = { super_admin: ["Overview", "Website content", "Program directory", "Program stories", "Partners & grants", "Media library", "Enquiries", "Donations", "Administrators", "Audit log"], editor: ["Overview", "Website content", "Program stories", "Media library", "Enquiries"], finance: ["Overview", "Donations"], viewer: ["Overview"] };
 const roleLabels = { super_admin: "Super Admin", editor: "Editor", finance: "Finance", viewer: "Viewer" };
 const defaults = {
   tagline: "Empowering People. Transforming Communities.",
@@ -50,6 +51,9 @@ export default function Admin() {
   const [stories, setStories] = useState([]);
   const [storyForm, setStoryForm] = useState({id:"",program:"1",title:"",summary:"",body:"",imageUrl:"",imageAlt:"",caption:"",publishedAt:new Date().toISOString().slice(0,10),published:false});
   const [storyBusy, setStoryBusy] = useState(false);
+  const [directorySettings,setDirectorySettings]=useState({categories:{},items:{},disclaimerVisible:true});
+  const [directoryBusy,setDirectoryBusy]=useState(false);
+  const directoryLabels={"food-security-family-support":"Food Security & Family Support","education-bursaries":"Education & Bursaries","youth-entrepreneurship":"Youth Entrepreneurship","employment-livelihoods":"Employment & Livelihoods","animal-rescue-welfare":"Animal Rescue & Welfare","community-development":"Community Development","emergency-relief":"Emergency Relief"};
   const [partnerships,setPartnerships]=useState([]);
   const [partnerBusy,setPartnerBusy]=useState(false);
   const [partnerForm,setPartnerForm]=useState({id:"",partnerName:"",partnerType:"Foundation / charitable trust",title:"",program:"",supportType:"Grant funding",amount:"",currency:"USD",startDate:"",endDate:"",status:"Active",publicDescription:"",internalNotes:"",showPublic:false});
@@ -79,6 +83,11 @@ export default function Admin() {
     catch(err) { setNotice(err.message); }
   };
   useEffect(() => { if (user && tab==="Program stories") loadStories(); }, [user,tab]);
+  const loadDirectorySettings=async()=>{try{const result=await api("/api/admin/program-directory");setDirectorySettings({categories:result.settings?.categories||{},items:result.settings?.items||{},disclaimerVisible:result.settings?.disclaimerVisible!==false});}catch(err){setNotice(err.message);}};
+  useEffect(()=>{if(user?.role==="super_admin"&&tab==="Program directory")loadDirectorySettings();},[user,tab]);
+  const saveDirectorySettings=async()=>{setDirectoryBusy(true);setNotice("");try{const result=await api("/api/admin/program-directory",{method:"PUT",body:JSON.stringify({settings:directorySettings})});setDirectorySettings(result.settings);setNotice("Program directory visibility settings saved and published.");}catch(err){setNotice(err.message);}finally{setDirectoryBusy(false);}};
+  const setCategoryVisibility=(slug,visible)=>setDirectorySettings(current=>({...current,categories:{...current.categories,[slug]:visible}}));
+  const setItemVisibility=(slug,title,visible)=>setDirectorySettings(current=>({...current,items:{...current.items,[slug]:{...(current.items[slug]||{}),[title]:visible}}}));
   const loadPartnerships=async()=>{try{const result=await api("/api/admin/partnerships");setPartnerships(result.partnerships||[]);}catch(err){setNotice(err.message);}};
   useEffect(()=>{if(user&&tab==="Partners & grants")loadPartnerships();},[user,tab]);
   const savePartnership=async e=>{e.preventDefault();setPartnerBusy(true);setNotice("");try{const item={...partnerForm,id:partnerForm.id||crypto.randomUUID()};const next=partnerForm.id?partnerships.map(x=>x.id===partnerForm.id?item:x):[item,...partnerships];const result=await api("/api/admin/partnerships",{method:"PUT",body:JSON.stringify({partnerships:next})});setPartnerships(result.partnerships||next);setPartnerForm({id:"",partnerName:"",partnerType:"Foundation / charitable trust",title:"",program:"",supportType:"Grant funding",amount:"",currency:"USD",startDate:"",endDate:"",status:"Active",publicDescription:"",internalNotes:"",showPublic:false});setNotice(item.id&&partnerships.some(x=>x.id===item.id)?"Partnership record updated.":"Partnership record added.");}catch(err){setNotice(err.message);}finally{setPartnerBusy(false);}};
@@ -192,6 +201,17 @@ export default function Admin() {
     <button disabled={busy}>{busy?"Saving…":"Save and publish website content"}</button>
     <p className="admin-help">Changes are stored in the GDOF database and displayed on the public homepage after saving. Images and the remaining design sections are not yet editable here.</p>
   </form>}
+  {tab==="Program directory" && user.role==="super_admin" && <section className="admin-panel admin-directory">
+    <p className="admin-intro">Control which external reference initiatives appear on the public website. Hidden entries are not deleted and can be restored at any time.</p>
+    <div className="admin-content-group"><h2>Directory disclaimer</h2><label className="story-publish"><input type="checkbox" checked={directorySettings.disclaimerVisible!==false} onChange={e=>setDirectorySettings(current=>({...current,disclaimerVisible:e.target.checked}))}/> Show the discreet note explaining that these are external examples aligned with GDOF goals, not GDOF projects</label></div>
+    <h2>Program categories and entries</h2>
+    {Object.entries(programDirectory).map(([slug,items])=><details className="admin-directory-group" key={slug}><summary><strong>{directoryLabels[slug]||slug}</strong><span>{directorySettings.categories[slug]===false?"Hidden":"Visible"} · {items.length} references</span></summary>
+      <label className="story-publish"><input type="checkbox" checked={directorySettings.categories[slug]!==false} onChange={e=>setCategoryVisibility(slug,e.target.checked)}/> Show this program category and its reference list on the public website</label>
+      <div className="admin-directory-items">{items.map(item=><label className="story-publish" key={item[0]}><input type="checkbox" checked={directorySettings.items[slug]?.[item[0]]!==false} onChange={e=>setItemVisibility(slug,item[0],e.target.checked)}/><span>{item[0]} <small>{directorySettings.items[slug]?.[item[0]]===false?"(Hidden)":"(Visible)"}</small></span></label>)}</div>
+    </details>)}
+    <div className="story-actions"><button type="button" disabled={directoryBusy} onClick={saveDirectorySettings}>{directoryBusy?"Saving…":"Save visibility settings"}</button></div>
+    <p className="admin-help">Only Super Admin can change these controls. Changes take effect on the public website after saving. Hiding a category or item does not erase its source data.</p>
+  </section>}
   {tab==="Program stories" && <section className="admin-panel admin-stories">
     <p className="admin-intro">Create project updates and activity stories under one of GDOF's six program categories. Images uploaded here are also saved in the Media Library.</p>
     <form className="story-editor" onSubmit={saveStory}>
