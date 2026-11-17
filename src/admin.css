@@ -119,3 +119,17 @@
 .radar-filters select{width:100%;min-width:0;padding:9px 8px;border:1px solid #dbe5de;background:#fff;color:#173b36;font:11px Arial}
 .radar-filter-reset{grid-column:1/-1;justify-self:start;border:0;background:transparent;color:#1f733c;text-decoration:underline;font-size:10px;cursor:pointer;padding:2px}
 @media(max-width:560px){.radar-filters{grid-template-columns:1fr 1fr}.radar-filters label:first-child{grid-column:1/-1}}
+
+/* Per-opportunity GDOF eligibility analysis */
+.radar-analyze{display:block;width:100%;margin:12px 0 8px;padding:12px 14px;border:1px solid #1f733c;border-radius:7px;background:#edf6ef;color:#176236;font-size:12px;font-weight:700;text-align:center;cursor:pointer}
+.radar-analyze:disabled{opacity:.6;cursor:wait}
+.radar-analysis{margin:12px 0;padding:14px;border:1px solid #dce9df;border-radius:9px;background:#f7faf7;color:#38534a;font-size:12px;line-height:1.6}
+.radar-analysis-head{display:flex;justify-content:space-between;gap:12px;align-items:center;color:#173b36}
+.radar-analysis-head span{font-weight:800;color:#1f733c;white-space:nowrap}
+.radar-analysis-verdict{font-weight:700;color:#173b36}
+.radar-analysis ul{margin:6px 0 12px;padding-left:19px}
+.radar-analysis li{margin:4px 0}
+.radar-analysis li small{display:block;color:#71827d}
+.radar-analysis a{color:#176236;text-decoration:underline}
+.radar-analysis-note{display:block;margin-top:12px;padding-top:9px;border-top:1px solid #e0e9e2;color:#788a82;font-size:10px}
+.radar-analysis-error{color:#a43d36;font-size:11px}
