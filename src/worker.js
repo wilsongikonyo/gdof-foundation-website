@@ -66,7 +66,7 @@ const storyKey = "program_stories";
 async function readStories(D) {
   const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key=?").bind(storyKey).first();
   let values=[]; try { values=JSON.parse(row?.content_value||"[]"); } catch {}
-  return Array.isArray(values)?values:[];
+  return Array.isArray(values)?values.map(x=>({...x,status:x.status||(x.published===true?'PUBLISHED':'DRAFT')})):[];
 }
 async function writeStories(D,stories) {
   await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(storyKey,JSON.stringify(stories)).run();
@@ -285,6 +285,7 @@ async function adminApi(request, env, url) {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage program stories."},403);
     const body=await request.json().catch(()=>({}));
     if (!Array.isArray(body.stories) || body.stories.length>300) return json({error:"Submit a valid list of up to 300 stories."},400);
+    const existing=await readStories(D);
     const stories=[];
     for (const item of body.stories) {
       const story={
@@ -297,13 +298,16 @@ async function adminApi(request, env, url) {
         imageAlt:String(item.imageAlt||"").trim().slice(0,250),
         caption:String(item.caption||"").trim().slice(0,500),
         publishedAt:String(item.publishedAt||"").slice(0,30),
-        published:Boolean(item.published)
+published:false,
+        status:existing.find(x=>x.id===item.id)?.status==="PUBLISHED"?"PUBLISHED":"PENDING_APPROVAL",
+        category_slug:categorySlugFromStory(item)
       };
       if (!/^[1-7]$/.test(story.program) || !story.title || !story.summary || !story.body) return json({error:"Each story needs a program, title, summary and full story."},400);
       if (story.imageUrl && !story.imageUrl.startsWith("/media/uploads/")) return json({error:"Story images must be selected from the GDOF Media Library."},400);
       stories.push(story);
     }
-    await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES('program_stories',?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(stories)).run();
+    const aiStories=existing.filter(x=>x.generation_mode);
+    await writeStories(D,[...aiStories,...stories]);
     await audit(env,user.email,"program.stories.updated",`Saved ${stories.length} program stories`);
     return json({ok:true,stories});
   }
@@ -438,17 +442,6 @@ export default {
       try {
         const all=await readStories(env.GDOF_DB);
         const stories=all.filter(s=>s.status==="PUBLISHED"&&categorySlugFromStory(s)===slug).map(s=>({id:s.id,category_slug:slug,program:PROGRAMS[slug].number,published:true,imageUrl:(s.images||s.media?.images||[])[0]?.url||"",imageAlt:(s.images||s.media?.images||[])[0]?.caption||s.title,caption:(s.images||s.media?.images||[])[0]?.caption||"",body:s.full_story||s.body,publishedAt:s.approved_at||s.created_at,title:s.title,summary:s.summary,full_story:s.full_story||s.body,media:s.media||{images:s.images||[],video:s.video_url?{url:s.video_url,source:s.video_source||"none"}:null},images:s.images||s.media?.images||[],video_url:s.video_url||s.media?.video?.url||"",external_reference_url:s.external_reference_url||"",created_at:s.created_at,approved_at:s.approved_at}));
-        return json({category:{slug,label:PROGRAMS[slug].label},stories});
-      } catch { return json({stories:[]}); }
-    }
-    const programMatch=url.pathname.match(/^\/api\/programs\/([a-z0-9-]+)$/);
-    if(programMatch&&request.method==="GET"){
-      const slug=programMatch[1];
-      if(!PROGRAMS[slug]) return json({error:"Programme not found."},404);
-      if(!env.GDOF_DB) return json({stories:[]});
-      try {
-        const all=await readStories(env.GDOF_DB);
-        const stories=all.filter(s=>s.status==="PUBLISHED"&&categorySlugFromStory(s)===slug).map(s=>({id:s.id,category_slug:slug,title:s.title,summary:s.summary,full_story:s.full_story||s.body,media:s.media||{images:s.images||[],video:s.video_url?{url:s.video_url,source:s.video_source||"none"}:null},images:s.images||s.media?.images||[],video_url:s.video_url||s.media?.video?.url||"",external_reference_url:s.external_reference_url||"",created_at:s.created_at,approved_at:s.approved_at}));
         return json({category:{slug,label:PROGRAMS[slug].label},stories});
       } catch { return json({stories:[]}); }
     }
