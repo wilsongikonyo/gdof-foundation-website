@@ -240,6 +240,25 @@ async function adminApi(request, env, url) {
     await audit(env,user.email,"story.ai.generated_from_notes",story.id);
     return json({ok:true,story});
   }
+  if (path==="/api/admin/update-story" && method==="PUT") {
+    if(!onlySuperAdmin(user)) return json({error:"Only a Super Admin can edit pending AI stories."},403);
+    const body=await request.json().catch(()=>({})), id=String(body.id||"");
+    const stories=await readStories(D), index=stories.findIndex(x=>x.id===id);
+    if(index<0) return json({error:"Story draft not found."},404);
+    const story=stories[index];
+    if(story.status!=="PENDING_APPROVAL") return json({error:"Only pending drafts can be edited here."},409);
+    if(typeof body.title==="string") story.title=body.title.trim().slice(0,180);
+    if(typeof body.summary==="string") story.summary=body.summary.trim().slice(0,900);
+    if(typeof body.full_story==="string") {story.full_story=body.full_story.trim().slice(0,20000);story.body=story.full_story;}
+    if(body.media&&typeof body.media==="object"){
+      const images=Array.isArray(body.media.images)?body.media.images.slice(0,6).filter(x=>x&&typeof x.url==="string"&&(x.url.startsWith("/media/uploads/")||x.url.startsWith("https://images.pexels.com/"))):[];
+      const video=body.media.video&&typeof body.media.video.url==="string"&&(body.media.video.url.startsWith("/media/uploads/")||body.media.video.url.startsWith("https://videos.pexels.com/"))?body.media.video:null;
+      story.media={images,video};story.images=images;story.video_url=video?.url||"";story.video_source=video?.source||"none";
+    }
+    if(!story.title||!story.summary||!(story.full_story||story.body)) return json({error:"A title, summary and full story are required."},400);
+    stories[index]=story;await writeStories(D,stories);await audit(env,user.email,"story.draft.updated",id);
+    return json({ok:true,story});
+  }
   if (path==="/api/admin/approve-story" && method==="POST") {
     if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can approve or reject stories."},403);
     const body=await request.json().catch(()=>({})), id=String(body.id||""), action=String(body.action||"");
@@ -410,6 +429,17 @@ export default {
         const partnerships=(Array.isArray(records)?records:[]).filter(x=>x.showPublic&&["Awarded / confirmed","Active","Completed"].includes(x.status)).map(x=>({id:x.id,partnerName:x.partnerName,title:x.title,partnerType:x.partnerType,program:x.program,supportType:x.supportType,startDate:x.startDate,endDate:x.endDate,status:x.status,publicDescription:x.publicDescription}));
         return json({partnerships});
       } catch { return json({partnerships:[]}); }
+    }
+    const programMatch=url.pathname.match(/^\/api\/programs\/([a-z0-9-]+)$/);
+    if(programMatch&&request.method==="GET"){
+      const slug=programMatch[1];
+      if(!PROGRAMS[slug]) return json({error:"Programme not found."},404);
+      if(!env.GDOF_DB) return json({stories:[]});
+      try {
+        const all=await readStories(env.GDOF_DB);
+        const stories=all.filter(s=>s.status==="PUBLISHED"&&categorySlugFromStory(s)===slug).map(s=>({id:s.id,category_slug:slug,title:s.title,summary:s.summary,full_story:s.full_story||s.body,media:s.media||{images:s.images||[],video:s.video_url?{url:s.video_url,source:s.video_source||"none"}:null},images:s.images||s.media?.images||[],video_url:s.video_url||s.media?.video?.url||"",external_reference_url:s.external_reference_url||"",created_at:s.created_at,approved_at:s.approved_at}));
+        return json({category:{slug,label:PROGRAMS[slug].label},stories});
+      } catch { return json({stories:[]}); }
     }
     const programMatch=url.pathname.match(/^\/api\/programs\/([a-z0-9-]+)$/);
     if(programMatch&&request.method==="GET"){
