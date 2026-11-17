@@ -68,7 +68,9 @@ The existing site uses Cloudflare Worker static assets from `./dist`. Deploy fro
 
 ## Operational notes and limitations
 
-- The story list currently uses the existing JSON value in `site_content`, not a new relational D1 table. This is compatible with the site's current schema but is less suitable for very large story volumes; move to a dedicated table with a reviewed migration if volume grows.
+- The Pexels video search endpoint uses the current `/v1/videos/search` route. Existing Pexels API keys can be used; Pexels currently notes that issuance of new API keys may be paused, so confirm availability before planning a new integration.
+
+The story list currently uses the existing JSON value in `site_content`, not a new relational D1 table. This is compatible with the site's current schema but is less suitable for very large story volumes; move to a dedicated table with a reviewed migration if volume grows.
 - Pexels API results and availability vary by query. Generation stops without saving a draft if the required stock media cannot be found.
 - ReliefWeb may not have suitable reports for every category (especially animal welfare or entrepreneurship). In that case the system returns an error and creates no invented "real-world" story. Use the field-notes mode for a GDOF idea or activity.
 - Video uploads are limited to 50 MB; image uploads to 8 MB. Supported formats are JPG, PNG, WebP, GIF, MP4, WebM and MOV.
