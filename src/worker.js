@@ -276,6 +276,11 @@ async function adminApi(request, env, url) {
     stories[index]=story; await writeStories(D,stories); await audit(env,user.email,"story.approved",id);
     return json({ok:true,story});
   }
+  if (path==="/api/admin/pending-stories" && method==="GET") {
+    if(!onlySuperAdmin(user)) return json({error:"Only a Super Admin can view pending AI stories."},403);
+    const stories=await readStories(D);
+    return json({stories:stories.filter(x=>x.status==="PENDING_APPROVAL")});
+  }
   if (path==="/api/admin/stories" && method==="GET") {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage program stories."},403);
     const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='program_stories'").first();
