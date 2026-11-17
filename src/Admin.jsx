@@ -92,11 +92,11 @@ export default function Admin() {
   const scanRadar=async()=>{
     setRadarScanning(true);setRadarError("");
     try {
-      await api("/api/admin/notifications/scan-now",{method:"POST",body:"{}"});
+      const scanResult=await api("/api/admin/notifications/scan-now",{method:"POST",body:"{}"});
       const result=await api("/api/admin/notifications");
       setRadarNotifications(Array.isArray(result.notifications)?result.notifications:[]);
       setRadarUnread(Number(result.unread_count)||0);
-      setRadarError(result.scan_message||"Scan completed.");
+      setRadarError(scanResult.scan_message||"Scan completed.");
     } catch(err) { setRadarError(err.message); }
     finally { setRadarScanning(false); }
   };
