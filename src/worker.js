@@ -76,6 +76,29 @@ function categorySlugFromStory(story) {
   const number=String(story.program||"");
   return Object.entries(PROGRAMS).find(([,v])=>v.number===number)?.[0]||"";
 }
+async function analyzeGrantEligibility(env,item) {
+  if(!env.OPENAI_API_KEY) throw new Error("OpenAI is not configured. Add OPENAI_API_KEY to the Worker secrets.");
+  const profile={
+    legal_name:"Global Development and Opportunity Foundation, Inc. (GDOF)",
+    incorporation:"Delaware, United States; incorporated 4 November 2026",
+    mission:"International charitable and community development work across food security, education and bursaries, youth entrepreneurship, employment and livelihoods, community development, emergency relief, and animal welfare",
+    operating_scope:"Intends to operate internationally, including Kenya and other countries",
+    tax_status:"Do not assume IRS 501(c)(3) recognition. Treat tax-exemption status as unconfirmed unless the grant notice or applicant supplies current IRS determination evidence.",
+    ein_status:"EIN status must be confirmed by the applicant before relying on it. EIN alone does not establish 501(c)(3) recognition.",
+    track_record:"No verified audited financial statements, operating history, prior awards, or programme outcomes have been supplied for this screening. Treat these as unknown, not as proof they do not exist.",
+    registration:"Delaware incorporation is known; foreign-country registration, solicitation permissions, and local implementation arrangements are not established by incorporation alone."
+  };
+  const prompt="You are a cautious US and international nonprofit grant eligibility screening analyst. Research this exact funding opportunity using public web search, prioritising the official funder notice, official application instructions, official eligibility pages and authoritative legal/tax guidance. Opportunity record: "+JSON.stringify({title:item.title,funder:item.funder,source:item.source_name,source_url:item.source_url||item.apply_url,amount:item.amount,deadline:item.deadline,applicant_types:item.applicant_types||item.applicantTypes||null,eligibility_note:item.eligibility_note||null})+". GDOF applicant profile: "+JSON.stringify(profile)+". Assess whether THIS applicant can apply to THIS opportunity, not whether the topic generally matches. Distinguish: confirmed eligible, potentially eligible subject to conditions, likely ineligible, and insufficient evidence. Check legal applicant type, IRS tax status/501(c)(3), EIN if required, US/domestic presence, foreign organisation restrictions, geography/place of performance, registration, fiscal sponsor rules, past performance, matching funds, and deadline/open status where applicable. Never infer eligibility from an EIN alone. If the official notice is missing or inaccessible, lower confidence and say so. Do not invent criteria. Return ONLY valid JSON with keys: score (integer 0-100), verdict (one of 'Potentially eligible','Likely eligible','Likely ineligible','Insufficient evidence'), confidence (integer 0-100), summary (string), strengths (array of strings), blockers (array of strings), unknowns (array of strings), actions (array of strings), sources (array of objects with title,url,why_relevant). Score means estimated application eligibility/readiness, NOT probability of winning or funding. Use conservative scoring; an unconfirmed mandatory tax status or applicant-type requirement must substantially reduce the score. No guarantee, and clearly recommend direct funder confirmation.";
+  const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{Authorization:"Bearer "+env.OPENAI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({model:env.OPENAI_RESEARCH_MODEL||"gpt-4.1-mini",tools:[{type:"web_search"}],input:prompt})});
+  if(!response.ok) throw new Error("Eligibility research failed with HTTP "+response.status+".");
+  const payload=await response.json();
+  const output=(payload.output_text|| (payload.output||[]).flatMap(x=>(x.content||[]).filter(c=>c.type==="output_text").map(c=>c.text)).join("\n")).trim();
+  if(!output) throw new Error("The eligibility research returned no analysis. Please try again.");
+  let parsed; try { const clean=output.replace(/^\`\`\`(?:json)?\s*/i,"").replace(/\s*\`\`\`$/,""); parsed=JSON.parse(clean); } catch { throw new Error("The AI returned an unreadable eligibility report. Please retry."); }
+  const score=Math.max(0,Math.min(100,Math.round(Number(parsed.score)||0)));
+  const verdicts=["Potentially eligible","Likely eligible","Likely ineligible","Insufficient evidence"];
+  return {score,verdict:verdicts.includes(parsed.verdict)?parsed.verdict:"Insufficient evidence",confidence:Math.max(0,Math.min(100,Math.round(Number(parsed.confidence)||0))),summary:String(parsed.summary||"No summary supplied."),strengths:Array.isArray(parsed.strengths)?parsed.strengths.slice(0,8):[],blockers:Array.isArray(parsed.blockers)?parsed.blockers.slice(0,8):[],unknowns:Array.isArray(parsed.unknowns)?parsed.unknowns.slice(0,8):[],actions:Array.isArray(parsed.actions)?parsed.actions.slice(0,8):[],sources:Array.isArray(parsed.sources)?parsed.sources.filter(x=>x&&/^https:\/\//i.test(x.url||"")).slice(0,10):[],assessed_at:new Date().toISOString(),score_note:"Preliminary AI screening estimate, not a legal opinion, eligibility determination, or probability of award."};
+}
 async function publicWebResearch(env,slug) {
   if(!env.OPENAI_API_KEY) throw new Error("OpenAI is not configured. Add OPENAI_API_KEY to the Worker secrets.");
   const category=PROGRAMS[slug];
@@ -153,6 +176,23 @@ async function adminApi(request, env, url) {
   if (!user) return json({error:"Please sign in to continue."},401);
   const D=db(env);
   if (path==="/api/admin/me" && method==="GET") return json({user:{email:user.email,role:user.role||"super_admin"}});
+  const eligibilityMatch=path.match(/^\/api\/admin\/notifications\/([^/]+)\/analyze-eligibility$/);
+  if (eligibilityMatch && method==="POST") {
+    if(!onlySuperAdmin(user)) return json({error:"Only a Super Admin can run eligibility assessments."},403);
+    let id; try { id=decodeURIComponent(eligibilityMatch[1]); } catch { return json({error:"Invalid opportunity ID."},400); }
+    const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='grants_radar_notifications'").first();
+    let notifications=[]; try { notifications=JSON.parse(row?.content_value||"[]"); } catch {}
+    if(!Array.isArray(notifications)) notifications=[];
+    const item=notifications.find(x=>x.id===id);
+    if(!item) return json({error:"Funding opportunity not found. Refresh the radar and try again."},404);
+    try {
+      const analysis=await analyzeGrantEligibility(env,item);
+      item.eligibility_analysis=analysis;
+      await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES('grants_radar_notifications',?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(notifications)).run();
+      await audit(env,user.email,"grants.radar.eligibility_analyzed",id+" · score "+analysis.score);
+      return json({ok:true,id,analysis});
+    } catch(error) { return json({error:String(error.message||"Eligibility analysis failed.")},502); }
+  }
   if (path==="/api/admin/notifications" && method==="GET") {
     if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can access funding notifications."},403);
     const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='grants_radar_notifications'").first();
