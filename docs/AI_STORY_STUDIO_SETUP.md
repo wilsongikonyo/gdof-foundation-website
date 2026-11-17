@@ -61,7 +61,7 @@ The existing site uses Cloudflare Worker static assets from `./dist`. Deploy fro
 
 - Auto-generated drafts are research summaries of external ReliefWeb reports, not claims that GDOF carried out the activity.
 - Field-note drafts must be checked against the original notes. The model is instructed not to invent results, participants, locations, dates, partnerships or quotations; uncertain items should be verified before approval.
-- Pexels images/videos are illustrative stock media. They are not proof of GDOF activity. Review the source link, suitability, and current license conditions before publication.
+- Pexels images/videos are treated as selected media for the proposed story. The Super Admin reviews and approves the complete story package, including its accompanying media, before publication. Keep Pexels source and licensing details in the administrative record.
 - All generated records begin as `PENDING_APPROVAL`. Public category routes return only `PUBLISHED` records.
 - Rejection deletes the draft record from the story list. It does not automatically delete uploaded media objects from R2.
 - The legacy manual story editor now submits drafts for approval; AI drafts are kept separate from its legacy editing list.
