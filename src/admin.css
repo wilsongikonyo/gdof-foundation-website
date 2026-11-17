@@ -68,3 +68,5 @@
 @media(max-width:760px){.ai-mode-grid{grid-template-columns:1fr}.ai-media-preview{grid-template-columns:repeat(2,minmax(0,1fr))}.ai-media-preview img{height:120px}.story-detail-media{grid-template-columns:1fr}}
 
 .media-card video{display:block;width:100%;height:160px;object-fit:cover;background:#101714}
+
+.pexels-credit{font-size:11px;color:#66766d;margin:10px 0}.pexels-credit a{color:#176a3b;text-decoration:underline;font-weight:700}
