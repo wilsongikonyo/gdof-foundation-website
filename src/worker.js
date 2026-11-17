@@ -52,6 +52,73 @@ async function requireAdmin(request, env) {
   const user=await db(env).prepare("SELECT id,email,active,role FROM admins WHERE email=?").bind(email).first();
   return user?.active ? user : null;
 }
+
+const PROGRAMS = {
+  "food-security-family-support": {label:"Food Security & Family Support",number:"1",query:"food security nutrition school meals agriculture"},
+  "education-bursaries": {label:"Education & Bursaries",number:"2",query:"education school access learning"},
+  "youth-entrepreneurship": {label:"Youth Entrepreneurship",number:"3",query:"youth entrepreneurship small business livelihoods"},
+  "employment-livelihoods": {label:"Employment & Livelihoods",number:"4",query:"employment livelihoods vocational training"},
+  "animal-rescue-welfare": {label:"Animal Rescue & Welfare",number:"7",query:"animal welfare rescue veterinary community"},
+  "community-development": {label:"Community Development",number:"5",query:"community development water sanitation resilience"},
+  "emergency-relief": {label:"Emergency Relief",number:"6",query:"humanitarian emergency relief response"}
+};
+const storyKey = "program_stories";
+async function readStories(D) {
+  const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key=?").bind(storyKey).first();
+  let values=[]; try { values=JSON.parse(row?.content_value||"[]"); } catch {}
+  return Array.isArray(values)?values:[];
+}
+async function writeStories(D,stories) {
+  await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(storyKey,JSON.stringify(stories)).run();
+}
+function categorySlugFromStory(story) {
+  if (PROGRAMS[story.category_slug]) return story.category_slug;
+  const number=String(story.program||"");
+  return Object.entries(PROGRAMS).find(([,v])=>v.number===number)?.[0]||"";
+}
+async function reliefWebResearch(env,slug) {
+  const p=PROGRAMS[slug];
+  const appname=env.RELIEFWEB_APPNAME||"gdof-foundation";
+  const response=await fetch("https://api.reliefweb.int/v1/reports?appname="+encodeURIComponent(appname),{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({limit:6,sort:["date.created:desc"],fields:{include:["title","url","date.created","body","country","source"]},query:{value:p.query,operator:"AND"}})
+  });
+  if(!response.ok) throw new Error("ReliefWeb research returned HTTP "+response.status+".");
+  const payload=await response.json();
+  const records=(payload.data||[]).map(x=>x.fields||{}).filter(x=>x.title&&x.url);
+  return records.map(x=>({title:String(x.title).slice(0,300),url:x.url,date:x["date.created"]||"",country:(x.country||[]).map(c=>c.name).join(", "),source:(x.source||[]).map(s=>s.name).join(", "),excerpt:String(x.body||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").slice(0,1800)}));
+}
+async function pexelsMedia(env,query) {
+  if(!env.PEXELS_API_KEY) throw new Error("Pexels is not configured. Add PEXELS_API_KEY before generating stories.");
+  const headers={Authorization:env.PEXELS_API_KEY};
+  const [photosRes,videosRes]=await Promise.all([
+    fetch("https://api.pexels.com/v1/search?"+new URLSearchParams({query,per_page:"3",orientation:"landscape"}),{headers}),
+    fetch("https://api.pexels.com/videos/search?"+new URLSearchParams({query,per_page:"1",orientation:"landscape"}),{headers})
+  ]);
+  if(!photosRes.ok||!videosRes.ok) throw new Error("Pexels could not provide the requested media.");
+  const [photos,videos]=await Promise.all([photosRes.json(),videosRes.json()]);
+  const images=(photos.photos||[]).slice(0,3).map(p=>({url:p.src?.large2x||p.src?.large||p.src?.original,source:"pexels_open_source",provider:"Pexels",photographer:p.photographer||"",source_url:p.url||"",caption:p.alt||"Illustrative stock photograph from Pexels"})).filter(x=>x.url);
+  const video=(videos.videos||[]).map(v=>({v, file:(v.video_files||[]).filter(f=>f.file_type==="video/mp4").sort((a,b)=>(b.width||0)-(a.width||0))[0]})).find(x=>x.file?.link);
+  if(images.length<2||!video) throw new Error("Pexels did not return at least two suitable images and one video. Try another category search later.");
+  return {images,video:{url:video.file.link,source:"pexels_open_source",provider:"Pexels",source_url:video.v.url||"",caption:"Illustrative stock video from Pexels"}};
+}
+async function draftWithOpenAI(env,{slug,notes,research,media}) {
+  if(!env.OPENAI_API_KEY) throw new Error("OpenAI is not configured. Add OPENAI_API_KEY to the Worker secrets.");
+  const category=PROGRAMS[slug];
+  const system="You are GDOF's careful editorial assistant. Return only valid JSON with title, summary, full_story. Never invent GDOF activities, beneficiaries, outcomes, statistics, partnerships, dates, locations or quotations. Distinguish external examples from GDOF work. If evidence is limited, use cautious wording and say what the source actually reports. Do not turn an external humanitarian report into a claim that GDOF delivered assistance. If the input is an idea rather than completed work, label it clearly as a proposed activity and use future/conditional language. Use dignified, non-exploitative language.";
+  const user=notes
+    ? "Create an editorial draft from these Super Admin field notes. Treat only the notes as facts; identify unverified items as [VERIFY]. Do not imply the idea has already happened. Category: "+category.label+". Notes: "+notes
+    : "Create a concise, source-grounded external initiative profile relevant to GDOF's category "+category.label+". It is NOT a GDOF project. Use only the source material below. Do not infer unreported impact or attribute work to GDOF. Cite source names, dates and links in the full story where available. Research records: "+JSON.stringify(research);
+  const response=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+env.OPENAI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({model:env.OPENAI_MODEL||"gpt-4.1-mini",response_format:{type:"json_object"},messages:[{role:"system",content:system},{role:"user",content:user}],temperature:0.2})});
+  if(!response.ok) throw new Error("OpenAI content generation failed with HTTP "+response.status+".");
+  const payload=await response.json();
+  let parsed; try { parsed=JSON.parse(payload.choices?.[0]?.message?.content||"{}"); } catch { throw new Error("AI returned an unreadable story draft. Please retry."); }
+  const title=String(parsed.title||"").trim(), summary=String(parsed.summary||"").trim(), full_story=String(parsed.full_story||"").trim();
+  if(!title||!summary||!full_story) throw new Error("AI did not return all required story fields.");
+  return {title:title.slice(0,180),summary:summary.slice(0,900),full_story:full_story.slice(0,20000)};
+}
+function onlySuperAdmin(user) { return (user?.role||"super_admin")==="super_admin"; }
+
 async function adminApi(request, env, url) {
   const path=url.pathname, method=request.method;
   if (path==="/api/admin/login" && method==="POST") {
@@ -142,6 +209,53 @@ async function adminApi(request, env, url) {
     await audit(env,user.email,"partnership.records.updated",`Saved ${partnerships.length} partner and grant records`);
     return json({ok:true,partnerships});
   }
+  if (path==="/api/admin/generate-auto" && method==="POST") {
+    if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can generate AI stories."},403);
+    const body=await request.json().catch(()=>({})), slug=String(body.category_slug||"");
+    if (!PROGRAMS[slug]) return json({error:"Choose one of the seven GDOF programme categories."},400);
+    const research=await reliefWebResearch(env,slug);
+    if (!research.length) return json({error:"No relevant ReliefWeb source records were found. No draft was created."},422);
+    const media=await pexelsMedia(env,PROGRAMS[slug].query);
+    const draft=await draftWithOpenAI(env,{slug,research});
+    const story={id:crypto.randomUUID(),category_slug:slug,program:PROGRAMS[slug].number,generation_mode:"auto",title:draft.title,summary:draft.summary,body:draft.full_story,full_story:draft.full_story,media,images:media.images,video_url:media.video.url,video_source:media.video.source,external_reference_url:research[0].url,research_sources:research.map(x=>({title:x.title,url:x.url,date:x.date,source:x.source})),status:"PENDING_APPROVAL",published:false,created_at:new Date().toISOString(),approved_at:null,created_by:user.email};
+    const stories=await readStories(D); stories.unshift(story); await writeStories(D,stories);
+    await audit(env,user.email,"story.ai.generated",story.id);
+    return json({ok:true,story});
+  }
+  if (path==="/api/admin/generate-from-notes" && method==="POST") {
+    if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can create AI drafts."},403);
+    const body=await request.json().catch(()=>({})), slug=String(body.category_slug||""), notes=String(body.notes||"").trim();
+    if (!PROGRAMS[slug]||notes.length<12||notes.length>12000) return json({error:"Choose a category and enter field notes between 12 and 12,000 characters."},400);
+    const media=body.media&&typeof body.media==="object"?body.media:{};
+    let images=Array.isArray(media.images)?media.images.filter(x=>x&&typeof x.url==="string"&&x.url.startsWith("/media/uploads/")).slice(0,6).map(x=>({...x,source:"superadmin_upload"})):[];
+    let video=media.video&&typeof media.video.url==="string"&&media.video.url.startsWith("/media/uploads/")?{...media.video,source:"superadmin_upload"}:null;
+    if(images.length<2||!video){
+      const fallback=await pexelsMedia(env,PROGRAMS[slug].query);
+      if(images.length<2) images=[...images,...fallback.images].slice(0,3);
+      if(!video) video=fallback.video;
+    }
+    const draft=await draftWithOpenAI(env,{slug,notes,media:{images,video}});
+    const story={id:crypto.randomUUID(),category_slug:slug,program:PROGRAMS[slug].number,generation_mode:"field_notes",title:draft.title,summary:draft.summary,body:draft.full_story,full_story:draft.full_story,field_notes:notes,media:{images,video},images,video_url:video?.url||"",video_source:video?.source||"none",status:"PENDING_APPROVAL",published:false,created_at:new Date().toISOString(),approved_at:null,created_by:user.email};
+    const stories=await readStories(D); stories.unshift(story); await writeStories(D,stories);
+    await audit(env,user.email,"story.ai.generated_from_notes",story.id);
+    return json({ok:true,story});
+  }
+  if (path==="/api/admin/approve-story" && method==="POST") {
+    if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can approve or reject stories."},403);
+    const body=await request.json().catch(()=>({})), id=String(body.id||""), action=String(body.action||"");
+    if(!id||!["approve","reject"].includes(action)) return json({error:"A story ID and valid action are required."},400);
+    const stories=await readStories(D), index=stories.findIndex(x=>x.id===id);
+    if(index<0) return json({error:"Story draft not found."},404);
+    if(action==="reject") {
+      stories.splice(index,1); await writeStories(D,stories); await audit(env,user.email,"story.rejected",id);
+      return json({ok:true,deleted:true});
+    }
+    const story=stories[index];
+    if(!story.title||!story.summary||!(story.full_story||story.body)) return json({error:"The story must have a title, summary and full text before publishing."},400);
+    story.status="PUBLISHED"; story.published=true; story.approved_at=new Date().toISOString(); story.approved_by=user.email;
+    stories[index]=story; await writeStories(D,stories); await audit(env,user.email,"story.approved",id);
+    return json({ok:true,story});
+  }
   if (path==="/api/admin/stories" && method==="GET") {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot manage program stories."},403);
     const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key='program_stories'").first();
@@ -187,22 +301,23 @@ async function adminApi(request, env, url) {
     return json({files, truncated:!listed.truncated});
   }
   if (path==="/api/admin/media" && method==="POST") {
-    if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot upload media."},403);
+    if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can upload media."},403);
     if (!env.GDOF_MEDIA) return json({error:"Media storage is not configured."},503);
     const form = await request.formData();
     const file = form.get("file");
-    if (!file || typeof file.arrayBuffer!=="function" || !file.size) return json({error:"Choose an image to upload."},400);
-    if (file.size > 8*1024*1024) return json({error:"Images must be 8 MB or smaller."},413);
-    const allowed = {"image/jpeg":"jpg","image/png":"png","image/webp":"webp","image/gif":"gif"};
+    if (!file || typeof file.arrayBuffer!=="function" || !file.size) return json({error:"Choose an image or video to upload."},400);
+    const allowed = {"image/jpeg":"jpg","image/png":"png","image/webp":"webp","image/gif":"gif","video/mp4":"mp4","video/webm":"webm","video/quicktime":"mov"};
     const ext = allowed[file.type];
-    if (!ext) return json({error:"Use a JPG, PNG, WebP or GIF image."},415);
+    if (!ext) return json({error:"Use JPG, PNG, WebP, GIF, MP4, WebM or MOV media."},415);
+    const maxSize=file.type.startsWith("video/")?50*1024*1024:8*1024*1024;
+    if(file.size>maxSize) return json({error:file.type.startsWith("video/")?"Videos must be 50 MB or smaller.":"Images must be 8 MB or smaller."},413);
     const key = "uploads/"+new Date().toISOString().slice(0,10)+"/"+crypto.randomUUID()+"."+ext;
     await env.GDOF_MEDIA.put(key, file.stream(), {
       httpMetadata:{contentType:file.type,cacheControl:"public, max-age=31536000, immutable"},
-      customMetadata:{originalName:String(file.name||"image").slice(0,180),uploadedBy:user.email}
+      customMetadata:{originalName:String(file.name||"media").slice(0,180),uploadedBy:user.email,mediaType:file.type.startsWith("video/")?"video":"image"}
     });
     await audit(env,user.email,"media.uploaded",key);
-    return json({file:{key,url:"/media/"+key.split("/").map(encodeURIComponent).join("/"),size:file.size}});
+    return json({file:{key,url:"/media/"+key.split("/").map(encodeURIComponent).join("/"),size:file.size,type:file.type,mediaType:file.type.startsWith("video/")?"video":"image"}});
   }
   const mediaDelete = path.match(/^\/api\/admin\/media\/(.+)$/);
   if (mediaDelete && method==="DELETE") {
@@ -296,12 +411,23 @@ export default {
         return json({partnerships});
       } catch { return json({partnerships:[]}); }
     }
+    const programMatch=url.pathname.match(/^\/api\/programs\/([a-z0-9-]+)$/);
+    if(programMatch&&request.method==="GET"){
+      const slug=programMatch[1];
+      if(!PROGRAMS[slug]) return json({error:"Programme not found."},404);
+      if(!env.GDOF_DB) return json({stories:[]});
+      try {
+        const all=await readStories(env.GDOF_DB);
+        const stories=all.filter(s=>s.status==="PUBLISHED"&&categorySlugFromStory(s)===slug).map(s=>({id:s.id,category_slug:slug,title:s.title,summary:s.summary,full_story:s.full_story||s.body,media:s.media||{images:s.images||[],video:s.video_url?{url:s.video_url,source:s.video_source||"none"}:null},images:s.images||s.media?.images||[],video_url:s.video_url||s.media?.video?.url||"",external_reference_url:s.external_reference_url||"",created_at:s.created_at,approved_at:s.approved_at}));
+        return json({category:{slug,label:PROGRAMS[slug].label},stories});
+      } catch { return json({stories:[]}); }
+    }
     if (url.pathname === "/api/public-stories" && request.method === "GET") {
       if (!env.GDOF_DB) return json({stories:[]});
       try {
         const row=await env.GDOF_DB.prepare("SELECT content_value FROM site_content WHERE content_key='program_stories'").first();
         const stories=JSON.parse(row?.content_value||"[]");
-        return json({stories:Array.isArray(stories)?stories.filter(story=>story.published===true):[]});
+        return json({stories:Array.isArray(stories)?stories.filter(story=>story.status==="PUBLISHED") : []});
       } catch { return json({stories:[]}); }
     }
     if (url.pathname === "/api/public-content" && request.method === "GET") {
