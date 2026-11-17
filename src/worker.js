@@ -194,7 +194,9 @@ async function adminApi(request, env, url) {
       const awardFloor=synopsis.awardFloorFormatted||synopsis.awardFloor;
       const awardCeiling=synopsis.awardCeilingFormatted||synopsis.awardCeiling;
       const amount=awardFloor||awardCeiling?(awardFloor&&awardCeiling?"USD "+awardFloor+"–"+awardCeiling:("USD "+(awardCeiling||awardFloor))):"Not stated in search record";
-      const closeDate=hit.closeDate||synopsis.closeDate||synopsis.responseDateDesc||"Not stated — verify on listing";
+      const closeDate=hit.closeDate||synopsis.closeDate||"Not stated — verify on listing";
+      const parsedDeadline=Date.parse(closeDate);
+      if(Number.isFinite(parsedDeadline)&&parsedDeadline<new Date().setHours(0,0,0,0)) continue;
       const applyUrl="https://www.grants.gov/search-results-detail/"+encodeURIComponent(String(hit.id));
       const eligibility=applicantTypes.length?"Published applicant types: "+applicantTypes.join(", ")+". GDOF must confirm that an internationally operating Delaware nonprofit is eligible, including any U.S. tax-status, domestic presence, and foreign-organization restrictions.":"Applicant-type details were not available in the search response. GDOF must verify applicant eligibility, U.S. tax-status requirements, and foreign-organization restrictions in the official notice.";
       discovered.push({
