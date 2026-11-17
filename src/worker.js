@@ -288,6 +288,7 @@ async function adminApi(request, env, url) {
     const existing=await readStories(D);
     const stories=[];
     for (const item of body.stories) {
+      const prior=existing.find(x=>x.id===item.id);
       const story={
         id:String(item.id||crypto.randomUUID()).slice(0,80),
         program:String(item.program||""),
@@ -299,7 +300,7 @@ async function adminApi(request, env, url) {
         caption:String(item.caption||"").trim().slice(0,500),
         publishedAt:String(item.publishedAt||"").slice(0,30),
 published:false,
-        status:existing.find(x=>x.id===item.id)?.status==="PUBLISHED"?"PUBLISHED":"PENDING_APPROVAL",
+        status:prior?.status==="PUBLISHED"&&prior.title===String(item.title||"").trim()&&prior.summary===String(item.summary||"").trim()&&prior.body===String(item.body||"").trim()&&prior.imageUrl===String(item.imageUrl||"").trim()?"PUBLISHED":"PENDING_APPROVAL",
         category_slug:categorySlugFromStory(item)
       };
       if (!/^[1-7]$/.test(story.program) || !story.title || !story.summary || !story.body) return json({error:"Each story needs a program, title, summary and full story."},400);
