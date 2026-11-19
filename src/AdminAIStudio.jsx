@@ -33,10 +33,22 @@ export default function AdminAIStudio({view="studio",onNotice=()=>{}}) {
   const [editing,setEditing]=useState({});
   const [uploading,setUploading]=useState("");
   const [refreshing,setRefreshing]=useState(false);
+  const [reliefWebBusy,setReliefWebBusy]=useState(false);
+  const [reliefWebReports,setReliefWebReports]=useState([]);
+  const [reliefWebMessage,setReliefWebMessage]=useState("");
   const isQueue=view==="queue";
   const categoryName=useMemo(()=>categories.find(x=>x[0]===category)?.[1]||category,[category]);
   const loadQueue=async()=>{setRefreshing(true);try{const r=await request("/api/admin/pending-stories");setDrafts(r.stories||[]);}catch(e){setError(e.message);}finally{setRefreshing(false);}};
   useEffect(()=>{if(isQueue)loadQueue();},[isQueue]);
+  const testReliefWeb=async()=>{
+    setReliefWebBusy(true);setError("");setReliefWebMessage("");setReliefWebReports([]);
+    try{
+      const result=await request("/api/admin/reliefweb-test",{method:"POST",body:JSON.stringify({category_slug:category})});
+      setReliefWebReports(result.reports||[]);
+      setReliefWebMessage("Connection successful · "+result.count+" ReliefWeb report(s) retrieved for "+result.category+".");
+    }catch(e){setReliefWebMessage(e.message);}
+    finally{setReliefWebBusy(false);}
+  };
   const generate=async mode=>{
     setBusy(true);setError("");onNotice("");
     try {
@@ -98,11 +110,17 @@ export default function AdminAIStudio({view="studio",onNotice=()=>{}}) {
     })}
   </section>;
   return <section className="admin-panel ai-studio">
-    <p className="admin-intro">Create evidence-aware programme stories. Every generated item is saved as a private draft and must be approved before publication.</p>
+    <p className="admin-intro">Create evidence-aware programme stories using GDOF's approved ReliefWeb API connection. Every generated item is saved as a private draft and must be approved before publication.</p>
     {error&&<p className="admin-warning" role="alert">{error}</p>}
+    <section className="ai-reliefweb-check">
+      <div><strong>ReliefWeb research connection</strong><p className="admin-help">Test the approved appname and preview current humanitarian reports before generating a story.</p></div>
+      <button type="button" className="admin-secondary" disabled={reliefWebBusy} onClick={testReliefWeb}>{reliefWebBusy?"Testing connection…":"Test ReliefWeb Connection"}</button>
+      {reliefWebMessage&&<p role="status" className={reliefWebReports.length||reliefWebMessage.startsWith("Connection successful")?"admin-help":"admin-warning"}>{reliefWebMessage}</p>}
+      {reliefWebReports.length>0&&<div className="ai-sources">{reliefWebReports.map(report=><a key={report.id||report.url} href={report.url} target="_blank" rel="noreferrer"><strong>{report.title}</strong><small>{[report.source,report.country,report.date?new Date(report.date).toLocaleDateString():""].filter(Boolean).join(" · ")}</small></a>)}</div>}
+    </section>
     <label>GDOF programme category<select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(([slug,label])=><option key={slug} value={slug}>{label}</option>)}</select></label>
     <div className="ai-mode-grid">
-      <article className="ai-mode-card"><span className="ai-mode-number">MODE 01</span><h2>Auto-Generate Story</h2><p>Search credible public sources online, prepare a source-grounded external initiative story, and find related Pexels stock images and video. ReliefWeb is optional and can be checked later from Pending Approval.</p><p className="admin-help">The result is clearly marked as an external example, not a GDOF activity or partnership. Every draft includes research references and stays private until approved.</p><button type="button" disabled={busy} onClick={()=>generate("auto")}>{busy?"Generating…":"Auto-Generate Story"}</button></article>
+      <article className="ai-mode-card"><span className="ai-mode-number">MODE 01</span><h2>Auto-Generate Story</h2><p>Retrieve recent humanitarian reports from ReliefWeb, prepare a source-grounded external initiative story, and find related Pexels stock images and video. Research references are attached to the draft for review.</p><p className="admin-help">The result is clearly marked as an external example, not a GDOF activity or partnership. Every draft includes research references and stays private until approved.</p><button type="button" disabled={busy} onClick={()=>generate("auto")}>{busy?"Generating…":"Auto-Generate Story"}</button></article>
       <article className="ai-mode-card"><span className="ai-mode-number">MODE 02</span><h2>What do you have?</h2><label>What have you done or what idea do you have?<textarea rows="6" value={notes} maxLength="12000" onChange={e=>setNotes(e.target.value)} placeholder="Share your field notes, what happened, who was involved (only if appropriate), what was achieved, or describe the idea you want to develop…"/></label><label>Upload your photos (optional)<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={e=>setImages(Array.from(e.target.files||[]).slice(0,6))}/></label><small>{images.length} image(s) selected</small><label>Upload a video (optional)<input type="file" accept="video/mp4,video/webm,video/quicktime" onChange={e=>setVideo(e.target.files?.[0]||null)}/></label><small>{video?.name||"No video selected; stock fallback will be used"}</small><button type="button" disabled={busy||notes.trim().length<12} onClick={()=>generate("notes")}>{busy?"Preparing draft…":"Create From My Update"}</button></article>
     </div>
     <p className="admin-help">Media fallback is handled per media type. Uploaded files are labelled as Super Admin uploads; Pexels assets are included in the proposed story package. Review the selected media before approval; approving the story also approves its accompanying media for publication.</p>
