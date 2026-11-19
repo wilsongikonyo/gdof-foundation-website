@@ -542,6 +542,90 @@ published:false,
     await audit(env,user.email,"media.deleted",key);
     return json({ok:true});
   }
+  // GDOF Document Register — metadata is indexed in D1; each immutable document version is stored in R2.
+  const documentKey="official_document_register";
+  const readDocumentRegister=async()=>{
+    const row=await D.prepare("SELECT content_value FROM site_content WHERE content_key=?").bind(documentKey).first();
+    let records=[];try{records=JSON.parse(row?.content_value||"[]");}catch{}
+    return Array.isArray(records)?records:[];
+  };
+  const writeDocumentRegister=async(records)=>{
+    await D.prepare("INSERT INTO site_content(content_key,content_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(content_key) DO UPDATE SET content_value=excluded.content_value,updated_at=CURRENT_TIMESTAMP").bind(documentKey,JSON.stringify(records)).run();
+  };
+  if(path==="/api/admin/documents"&&method==="GET"){
+    if(!onlySuperAdmin(user))return json({error:"Only a Super Admin can access the official document register."},403);
+    return json({documents:await readDocumentRegister()});
+  }
+  if(path==="/api/admin/documents"&&method==="POST"){
+    if(!onlySuperAdmin(user))return json({error:"Only a Super Admin can create official documents."},403);
+    if(!env.GDOF_MEDIA)return json({error:"Document storage is not configured. Add the GDOF_MEDIA R2 binding."},503);
+    const body=await request.json().catch(()=>({}));
+    const title=String(body.title||"").trim().slice(0,180),html=String(body.html||"");
+    if(!title||!html||html.length>1500000)return json({error:"A title and print-ready document content (up to 1.5 MB) are required."},400);
+    const id=String(body.id||crypto.randomUUID()).slice(0,80);
+    const records=await readDocumentRegister();
+    let record=records.find(x=>x.id===id);
+    if(record&&record.status==="APPROVED")return json({error:"Approved records are locked. Create a new document or version through an authorized correction process."},409);
+    const versionId=crypto.randomUUID(),versionNumber=record?(Math.max(0,...record.versions.map(v=>Number(v.version)||0))+1):1;
+    const htmlKey="documents/"+id+"/"+versionId+".html";
+    await env.GDOF_MEDIA.put(htmlKey,html,{httpMetadata:{contentType:"text/html; charset=utf-8",cacheControl:"private, no-store"},customMetadata:{documentId:id,versionId,uploadedBy:user.email,kind:"document-html"}});
+    const now=new Date().toISOString();
+    const version={id:versionId,version:versionNumber,htmlKey,pdfKey:record?.versions?.[0]?.pdfKey||null,pdfName:record?.versions?.[0]?.pdfName||null,createdAt:now,createdBy:user.email,changeNote:String(body.changeNote||"").slice(0,500)};
+    if(!record){
+      const stamp=now.slice(0,10).replace(/-/g,"");
+      record={id,documentNumber:"GDOF/DOC/"+stamp+"/"+crypto.randomUUID().slice(0,6).toUpperCase(),title,documentType:String(body.documentType||"Custom Document").slice(0,80),reference:String(body.reference||"").slice(0,100),documentDate:String(body.documentDate||now.slice(0,10)).slice(0,10),recipient:String(body.recipient||"").slice(0,240),preparedBy:String(body.preparedBy||"").slice(0,180),status:"DRAFT",createdAt:now,createdBy:user.email,updatedAt:now,updatedBy:user.email,versions:[]};
+      records.unshift(record);
+    }
+    record.title=title;record.documentType=String(body.documentType||record.documentType||"Custom Document").slice(0,80);record.reference=String(body.reference||"").slice(0,100);record.documentDate=String(body.documentDate||"").slice(0,10);record.recipient=String(body.recipient||"").slice(0,240);record.preparedBy=String(body.preparedBy||"").slice(0,180);
+    record.status="DRAFT";record.updatedAt=now;record.updatedBy=user.email;record.versions.unshift(version);
+    records=records.filter(x=>x.id!==id);records.unshift(record);await writeDocumentRegister(records);
+    await audit(env,user.email,"document.version.saved",record.documentNumber+" v"+versionNumber);
+    return json({ok:true,document:record});
+  }
+  const documentPdfMatch=path.match(/^\/api\/admin\/documents\/([^/]+)\/pdf$/);
+  if(documentPdfMatch&&method==="POST"){
+    if(!onlySuperAdmin(user))return json({error:"Only a Super Admin can attach final PDFs."},403);
+    if(!env.GDOF_MEDIA)return json({error:"Document storage is not configured."},503);
+    const id=decodeURIComponent(documentPdfMatch[1]),records=await readDocumentRegister(),record=records.find(x=>x.id===id);
+    if(!record)return json({error:"Document record not found."},404);
+    if(record.status==="APPROVED")return json({error:"Approved documents are locked. Do not replace their signed PDF."},409);
+    const form=await request.formData(),file=form.get("file");
+    if(!file||typeof file.arrayBuffer!=="function"||file.type!=="application/pdf"||!file.size)return json({error:"Choose a valid PDF file."},415);
+    if(file.size>15*1024*1024)return json({error:"PDF files must be 15 MB or smaller."},413);
+    const version=record.versions[0];if(!version)return json({error:"Save a document version before attaching its PDF."},409);
+    const key="documents/"+id+"/"+version.id+".pdf";
+    await env.GDOF_MEDIA.put(key,file.stream(),{httpMetadata:{contentType:"application/pdf",cacheControl:"private, no-store"},customMetadata:{documentId:id,versionId:version.id,uploadedBy:user.email,kind:"document-pdf"}});
+    version.pdfKey=key;version.pdfName=String(file.name||"document.pdf").slice(0,180);version.pdfSize=file.size;
+    record.updatedAt=new Date().toISOString();record.updatedBy=user.email;await writeDocumentRegister(records);
+    await audit(env,user.email,"document.pdf.attached",record.documentNumber+" v"+version.version);
+    return json({ok:true,document:record});
+  }
+  const documentStatusMatch=path.match(/^\/api\/admin\/documents\/([^/]+)\/status$/);
+  if(documentStatusMatch&&method==="PATCH"){
+    if(!onlySuperAdmin(user))return json({error:"Only a Super Admin can approve official documents."},403);
+    const id=decodeURIComponent(documentStatusMatch[1]),body=await request.json().catch(()=>({})),status=String(body.status||"");
+    if(!["PENDING_APPROVAL","APPROVED","RETURNED"].includes(status))return json({error:"Choose a valid document status."},400);
+    const records=await readDocumentRegister(),record=records.find(x=>x.id===id);if(!record)return json({error:"Document record not found."},404);
+    if(status==="PENDING_APPROVAL"&&!record.versions?.[0]?.pdfKey)return json({error:"Attach the final PDF before submitting this document for approval."},409);
+    if(status==="APPROVED"&&record.status!=="PENDING_APPROVAL")return json({error:"Only documents awaiting approval can be approved."},409);
+    record.status=status;record.updatedAt=new Date().toISOString();record.updatedBy=user.email;
+    if(status==="APPROVED"){record.approvedAt=record.updatedAt;record.approvedBy=user.email;}
+    if(status==="RETURNED"){record.returnedAt=record.updatedAt;record.returnedBy=user.email;record.returnNote=String(body.note||"").slice(0,500);}
+    await writeDocumentRegister(records);await audit(env,user.email,"document.status."+status.toLowerCase(),record.documentNumber);
+    return json({ok:true,document:record});
+  }
+  const documentFileMatch=path.match(/^\/api\/admin\/documents\/([^/]+)\/files\/(html|pdf)$/);
+  if(documentFileMatch&&method==="GET"){
+    if(!onlySuperAdmin(user))return json({error:"Only a Super Admin can download official documents."},403);
+    if(!env.GDOF_MEDIA)return json({error:"Document storage is not configured."},503);
+    const id=decodeURIComponent(documentFileMatch[1]),kind=documentFileMatch[2],records=await readDocumentRegister(),record=records.find(x=>x.id===id);
+    if(!record)return json({error:"Document record not found."},404);
+    const versionId=url.searchParams.get("version")||record.versions?.[0]?.id,version=record.versions?.find(v=>v.id===versionId);
+    const key=kind==="pdf"?version?.pdfKey:version?.htmlKey;if(!key)return json({error:"This version has no "+kind.toUpperCase()+" file attached."},404);
+    const object=await env.GDOF_MEDIA.get(key);if(!object)return json({error:"Stored document file not found."},404);
+    const headers=new Headers();object.writeHttpMetadata(headers);headers.set("Cache-Control","private, no-store");headers.set("Content-Disposition",(kind==="pdf"?"attachment":"inline")+"; filename="+JSON.stringify(kind==="pdf"?(version.pdfName||record.documentNumber+".pdf"):record.documentNumber+"-v"+version.version+".html"));headers.set("X-Content-Type-Options","nosniff");
+    return new Response(object.body,{headers});
+  }
   if (path==="/api/admin/content" && method==="PUT") {
     if (!["super_admin","editor"].includes(user.role||"super_admin")) return json({error:"Your role cannot edit website content."},403);
     const body=await request.json().catch(()=>({}));
