@@ -476,6 +476,22 @@ async function adminApi(request, env, url) {
     await audit(env,user.email,"story.reliefweb.verified",id);
     return json({ok:true,verification:story.reliefweb_verification});
   }
+
+  if(path==="/api/admin/generate-image-caption" && method==="POST"){
+    if(!onlySuperAdmin(user))return json({error:"Only a Super Admin can generate image captions."},403);
+    if(!env.OPENAI_API_KEY)return json({error:"OpenAI is not configured. Add OPENAI_API_KEY to the Worker secrets."},503);
+    const body=await request.json().catch(()=>({}));
+    const imagePath=String(body.image_url||"");
+    if(!imagePath.startsWith("/media/uploads/")||imagePath.includes(".."))return json({error:"Choose an image already uploaded to the GDOF Media Library."},400);
+    const imageUrl=new URL(imagePath,request.url).toString();
+    const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{Authorization:"Bearer "+env.OPENAI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({model:env.OPENAI_MODEL||"gpt-4.1-mini",input:[{role:"user",content:[{type:"input_text",text:"Write one concise, accurate, respectful photo caption for this image for Global Development and Opportunity Foundation (GDOF). Describe only visible details. Do not guess names, ages, location, date, identities, outcomes, or claim GDOF involvement unless visibly established. Avoid identifying people. Return only the caption, maximum 35 words."},{type:"input_image",image_url:imageUrl,detail:"low"}]}],max_output_tokens:100})});
+    if(!response.ok){let detail={};try{detail=await response.json();}catch{};throw new Error("AI caption generation failed (HTTP "+response.status+"): "+String(detail.error?.message||"Check OpenAI API access and usage limits.").slice(0,250));}
+    const payload=await response.json();
+    const caption=String(payload.output_text||(payload.output||[]).flatMap(x=>(x.content||[]).filter(c=>c.type==="output_text").map(c=>c.text)).join(" ")).trim().replace(/^["']|["']$/g,"");
+    if(!caption)return json({error:"AI did not return a caption. Please try again."},502);
+    await audit(env,user.email,"story.image.caption_generated",imagePath);
+    return json({caption:caption.slice(0,300)});
+  }
   if (path==="/api/admin/update-story" && method==="PUT") {
     if(!onlySuperAdmin(user)) return json({error:"Only a Super Admin can edit pending AI stories."},403);
     const body=await request.json().catch(()=>({})), id=String(body.id||"");
