@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./documents.css";
 
 const templates = {
@@ -23,6 +23,7 @@ export default function AdminDocuments({ onNotice }) {
   const [includeRecipient,setIncludeRecipient]=useState(false);
   const [includePreparedBy,setIncludePreparedBy]=useState(true);
   const [notice,setLocalNotice]=useState("");
+  const [documents,setDocuments]=useState([]); const [activeDocument,setActiveDocument]=useState(null); const [loadingDocuments,setLoadingDocuments]=useState(false); const [saving,setSaving]=useState(false); const [changeNote,setChangeNote]=useState("");
   const formattedDate=useMemo(()=>documentDate?new Date(documentDate+"T00:00:00").toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"}):"",[documentDate]);
 
   const chooseTemplate=value=>{
@@ -31,29 +32,23 @@ export default function AdminDocuments({ onNotice }) {
     setLocalNotice("");
   };
   const esc=value=>String(value||"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
-  const printDocument=()=>{
-    if(!title.trim()||!body.trim()){setLocalNotice("Add a document title and content before printing.");return;}
-    const paragraphs=body.split(/\n\s*\n/).map(part=>'<p>'+esc(part).replace(/\n/g,"<br>")+'</p>').join("");
-    const html='<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>'+
-      '@page{size:A4;margin:25mm 20mm 22mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#23384b;font-size:11pt;line-height:1.55;margin:0}header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #247447;padding-bottom:10px;margin-bottom:28px}header img{width:205px;max-height:70px;object-fit:contain;object-position:left center}.brandtext{text-align:right;font-size:9pt;font-weight:bold;color:#17324f}.brandtext small{display:block;color:#247447;font-weight:normal;font-style:italic;margin-top:4px}.meta{font-size:9pt;color:#5b6570;margin:0 0 20px}.meta span{display:inline-block;margin-right:22px}.doc-title{text-align:center;color:#17324f;font-size:19pt;line-height:1.25;margin:28px 0 22px;text-transform:uppercase}.recipient{margin:16px 0}.body p{white-space:normal;margin:0 0 12px;min-height:1em}.signature{margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:34px}.sigline{border-top:1px solid #7d8790;padding-top:8px;margin-top:36px;font-size:9pt}.prepared{margin-top:28px;font-size:9pt;color:#536575}.footer{position:fixed;bottom:-14mm;left:0;right:0;border-top:1px solid #247447;padding-top:6px;color:#697986;font-size:8pt;display:flex;justify-content:space-between}.footer .right{color:#17324f}@media screen{body{max-width:210mm;margin:20px auto;padding:18mm 20mm;box-shadow:0 2px 22px #0002}}'+
-      '</style></head><body><header><img src="/gdof-logo.svg" alt="GDOF logo"><div class="brandtext">GLOBAL DEVELOPMENT AND<br>OPPORTUNITY FOUNDATION<small>Empowering People. Transforming Communities.</small></div></header>'+
-      '<div class="meta">'+(reference?'<span><b>Reference:</b> '+esc(reference)+'</span>':'')+(formattedDate?'<span><b>Date:</b> '+esc(formattedDate)+'</span>':'')+'</div>'+
-      '<h1 class="doc-title">'+esc(title)+'</h1>'+
-      (includeRecipient&&recipient?'<div class="recipient"><b>To:</b> '+esc(recipient)+'</div>':'')+
-      '<main class="body">'+paragraphs+'</main>'+
-      (includePreparedBy?'<div class="prepared"><b>Prepared by:</b> '+esc(preparedBy)+'</div>':'')+
-      (includeSignatureLines?'<div class="signature"><div class="sigline">Name / Title<br>Signature: __________________________<br>Date: __________________</div><div class="sigline">Name / Title<br>Signature: __________________________<br>Date: __________________</div></div>':'')+
-      '<div class="footer"><span>GDOF | Global Development and Opportunity Foundation</span><span class="right">Delaware Non-Stock Nonprofit Corporation</span></div>'+
-      '<script>window.onload=()=>{setTimeout(()=>window.print(),350)};<\/script></body></html>';
-    const win=window.open("","_blank");
-    if(!win){setLocalNotice("Your browser blocked the print window. Allow pop-ups for the admin site and try again.");return;}
-    win.document.open();win.document.write(html);win.document.close();
-    setLocalNotice("Print-ready document opened. Choose your printer or Save as PDF in the print dialog.");
-    onNotice?.("GDOF document opened in the print-ready template.");
+  const buildHtml=()=>{
+    const paragraphs=body.split(/\\n\\s*\\n/).map(part=>'<p>'+esc(part).replace(/\\n/g,"<br>")+'</p>').join("");
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>@page{size:A4;margin:25mm 20mm 22mm}body{font-family:Arial,sans-serif;color:#23384b;font-size:11pt;line-height:1.55}header{display:flex;justify-content:space-between;border-bottom:2px solid #247447;padding-bottom:10px;margin-bottom:28px}header img{width:205px;max-height:70px;object-fit:contain}.brandtext{text-align:right;font-size:9pt;font-weight:bold;color:#17324f}.brandtext small{display:block;color:#247447;font-weight:normal;font-style:italic;margin-top:4px}.meta{font-size:9pt;color:#5b6570;margin-bottom:20px}.doc-title{text-align:center;color:#17324f;font-size:19pt;margin:28px 0 22px;text-transform:uppercase}.body p{margin:0 0 12px}.signature{margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:34px}.sigline{border-top:1px solid #7d8790;padding-top:8px;margin-top:36px;font-size:9pt}.prepared{margin-top:28px;font-size:9pt;color:#536575}.footer{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #247447;padding-top:6px;color:#697986;font-size:8pt;display:flex;justify-content:space-between}</style></head><body><header><img src="/gdof-logo.svg" alt="GDOF logo"><div class="brandtext">GLOBAL DEVELOPMENT AND<br>OPPORTUNITY FOUNDATION<small>Empowering People. Transforming Communities.</small></div></header><div class="meta"><b>Reference:</b> '+esc(reference||"To be assigned")+' &nbsp; <b>Date:</b> '+esc(formattedDate)+'</div><h1 class="doc-title">'+esc(title)+'</h1>'+(includeRecipient&&recipient?'<p><b>To:</b> '+esc(recipient)+'</p>':'')+'<main class="body">'+paragraphs+'</main>'+(includePreparedBy?'<div class="prepared"><b>Prepared by:</b> '+esc(preparedBy)+'</div>':'')+(includeSignatureLines?'<div class="signature"><div class="sigline">Name / Title<br>Signature: __________________________<br>Date: __________________</div><div class="sigline">Name / Title<br>Signature: __________________________<br>Date: __________________</div></div>':'')+'<div class="footer"><span>GDOF | Global Development and Opportunity Foundation</span><span>Delaware Non-Stock Nonprofit Corporation</span></div></body></html>';
   };
+  const api=async(path,options={})=>{const response=await fetch(path,{credentials:"same-origin",...options,headers:{...(options.headers||{})}});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||"The document request failed.");return result;};
+  const loadDocuments=async()=>{setLoadingDocuments(true);try{const result=await api("/api/admin/documents");setDocuments(result.documents||[]);}catch(err){setLocalNotice(err.message);}finally{setLoadingDocuments(false);}};
+  useEffect(()=>{loadDocuments();},[]);
+  const printDocument=()=>{if(!title.trim()||!body.trim()){setLocalNotice("Add a document title and content before printing.");return;}const win=window.open("","_blank");if(!win){setLocalNotice("Allow pop-ups for the admin site and try again.");return;}win.document.open();win.document.write(buildHtml().replace("</body>","<script>window.onload=()=>setTimeout(()=>window.print(),350);<\\/script></body>"));win.document.close();setLocalNotice("Choose your printer or Save as PDF.");};
+  const saveDraft=async()=>{if(!title.trim()||!body.trim()){setLocalNotice("A title and document content are required.");return;}setSaving(true);try{const result=await api("/api/admin/documents",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:activeDocument?.id,title,documentType:kind,reference,documentDate,recipient:includeRecipient?recipient:"",preparedBy:includePreparedBy?preparedBy:"",html:buildHtml(),changeNote})});setActiveDocument(result.document);setChangeNote("");await loadDocuments();setLocalNotice("Draft version saved in the GDOF register.");}catch(err){setLocalNotice(err.message);}finally{setSaving(false);}};
+  const uploadPdf=async e=>{const file=e.target.files?.[0];e.target.value="";if(!file)return;if(!activeDocument){setLocalNotice("Save the draft first.");return;}const form=new FormData();form.append("file",file);setSaving(true);try{const response=await fetch("/api/admin/documents/"+encodeURIComponent(activeDocument.id)+"/pdf",{method:"POST",credentials:"same-origin",body:form});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||"PDF upload failed.");setActiveDocument(result.document);await loadDocuments();setLocalNotice("PDF attached to this document version.");}catch(err){setLocalNotice(err.message);}finally{setSaving(false);}};
+  const updateStatus=async(doc,status)=>{setSaving(true);try{const result=await api("/api/admin/documents/"+encodeURIComponent(doc.id)+"/status",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});setActiveDocument(result.document);await loadDocuments();setLocalNotice("Document status updated.");}catch(err){setLocalNotice(err.message);}finally{setSaving(false);}};
+  const downloadFile=(doc,type,v)=>window.open("/api/admin/documents/"+encodeURIComponent(doc.id)+"/files/"+type+"?version="+encodeURIComponent(v.id),"_blank");
+  const editDocument=async doc=>{try{const v=doc.versions?.[0];const response=await fetch("/api/admin/documents/"+encodeURIComponent(doc.id)+"/files/html?version="+encodeURIComponent(v.id),{credentials:"same-origin"});if(!response.ok)throw new Error("Could not load saved version.");const html=await response.text(),parsed=new DOMParser().parseFromString(html,"text/html");setActiveDocument(doc);setTitle(doc.title);setKind(doc.documentType||"Custom Document");setReference(doc.reference||"");setDocumentDate(doc.documentDate||"");setRecipient(doc.recipient||"");setPreparedBy(doc.preparedBy||"");setBody(parsed.querySelector("main.body")?.innerText||"");setIncludeRecipient(Boolean(doc.recipient));setIncludePreparedBy(Boolean(doc.preparedBy));setLocalNotice("Loaded latest version. Saving creates a new version.");}catch(err){setLocalNotice(err.message);}};
+
 
   return <section className="admin-panel gdof-doc-centre">
-    <p className="admin-intro">Create a print-ready GDOF document using the Foundation’s standard logo, letterhead, colours, typography and footer. Choose a document type, edit the content and print or save as PDF.</p>
+    <p className="admin-intro">Create, version, review and retain official GDOF documents. Drafts and final PDFs are stored in Cloudflare R2 with a searchable register in the admin database.</p>
     <div className="gdof-doc-grid">
       <div className="gdof-doc-form">
         <label>Document template<select value={kind} onChange={e=>chooseTemplate(e.target.value)}>{Object.keys(templates).map(x=><option key={x}>{x}</option>)}</select></label>
@@ -68,14 +63,14 @@ export default function AdminDocuments({ onNotice }) {
         <label className="gdof-doc-check"><input type="checkbox" checked={includePreparedBy} onChange={e=>setIncludePreparedBy(e.target.checked)}/> Include prepared-by line</label>
         {includePreparedBy&&<label>Prepared by<input value={preparedBy} onChange={e=>setPreparedBy(e.target.value)}/></label>}
         <label className="gdof-doc-check"><input type="checkbox" checked={includeSignatureLines} onChange={e=>setIncludeSignatureLines(e.target.checked)}/> Include signature lines</label>
-        <div className="gdof-doc-actions"><button type="button" onClick={printDocument}>Preview / Print document ↗</button><button type="button" className="admin-secondary" onClick={()=>{chooseTemplate(kind);setReference("");setDocumentDate(new Date().toISOString().slice(0,10));setRecipient("");setIncludeRecipient(false);setLocalNotice("Template reset.");}}>Reset template</button></div>
+        <label>Version note<input value={changeNote} onChange={e=>setChangeNote(e.target.value)} placeholder="Describe this version"/></label><div className="gdof-doc-actions"><button type="button" onClick={saveDraft} disabled={saving}>{saving?"Saving…":"Save draft / new version"}</button><button type="button" onClick={printDocument}>Preview / Print ↗</button><button type="button" className="admin-secondary" onClick={()=>{chooseTemplate(kind);setActiveDocument(null);setReference("");setDocumentDate(new Date().toISOString().slice(0,10));setRecipient("");setIncludeRecipient(false);}}>New document</button></div><label>Attach exported final PDF<input type="file" accept="application/pdf,.pdf" onChange={uploadPdf} disabled={saving||!activeDocument}/></label><p className="admin-help">Print and save as PDF first, then attach the exported PDF above. Save the draft before uploading.</p>{activeDocument&&<p className="gdof-active-record"><b>{activeDocument.documentNumber}</b> · {activeDocument.status} · {activeDocument.versions?.length||0} version(s) {activeDocument.versions?.[0]?.pdfKey&&<button type="button" className="admin-secondary" onClick={()=>downloadFile(activeDocument,"pdf",activeDocument.versions[0])}>Download PDF</button>} {activeDocument.status==="DRAFT"&&activeDocument.versions?.[0]?.pdfKey&&<button type="button" onClick={()=>updateStatus(activeDocument,"PENDING_APPROVAL")}>Submit for approval</button>}</p>}
         {notice&&<p className="admin-help" role="status">{notice}</p>}
       </div>
       <aside className="gdof-doc-info">
         <h2>GDOF document standard</h2>
         <ul><li>Official GDOF logo and letterhead</li><li>Navy, green and gold brand palette</li><li>Consistent title and document metadata</li><li>Standard corporate footer</li><li>A4 print layout with signature fields</li></ul>
         <p><b>Printing:</b> Select “Preview / Print document”, then choose a printer or “Save as PDF” in your browser’s print dialog.</p>
-        <p><b>Recordkeeping:</b> This first version generates the document in your browser. It does not yet save drafts or final PDFs into the GDOF document register.</p>
+        <p><b>Secure storage:</b> Draft versions and final PDF attachments are stored in GDOF R2. Register metadata is stored in D1.</p><p><b>Approval:</b> Attach the final PDF before submitting it. Approved records are locked.</p>
         <p className="gdof-doc-warning">Only use signature images or execute a document after the relevant signatories have approved that specific document. This template provides blank signature fields by default.</p>
       </aside>
     </div>
