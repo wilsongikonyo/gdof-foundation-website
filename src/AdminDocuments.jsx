@@ -45,7 +45,7 @@ export default function AdminDocuments({ onNotice }) {
       (includeSignatureLines?'<div class="signature"><div class="sigline">Name / Title<br>Signature: __________________________<br>Date: __________________</div><div class="sigline">Name / Title<br>Signature: __________________________<br>Date: __________________</div></div>':'')+
       '<div class="footer"><span>GDOF | Global Development and Opportunity Foundation</span><span class="right">Delaware Non-Stock Nonprofit Corporation</span></div>'+
       '<script>window.onload=()=>{setTimeout(()=>window.print(),350)};<\/script></body></html>';
-    const win=window.open("","_blank","noopener,noreferrer");
+    const win=window.open("","_blank");
     if(!win){setLocalNotice("Your browser blocked the print window. Allow pop-ups for the admin site and try again.");return;}
     win.document.open();win.document.write(html);win.document.close();
     setLocalNotice("Print-ready document opened. Choose your printer or Save as PDF in the print dialog.");
