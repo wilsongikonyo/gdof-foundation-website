@@ -115,17 +115,50 @@ async function publicWebResearch(env,slug) {
   return [{title:"AI public web research brief",url:unique[0].url,date:new Date().toISOString().slice(0,10),source:"OpenAI web search",excerpt:brief.slice(0,12000)},...unique.slice(1).map(x=>({title:x.title,url:x.url,date:"",source:"Public web search",excerpt:"Source discovered during web research."}))];
 }
 async function reliefWebResearch(env,slug) {
-  const p=PROGRAMS[slug];
-  if(!env.RELIEFWEB_APPNAME) throw new Error("Set a registered RELIEFWEB_APPNAME Worker secret before using automatic research.");
-  const appname=env.RELIEFWEB_APPNAME;
-  const response=await fetch("https://api.reliefweb.int/v2/reports?appname="+encodeURIComponent(appname),{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({limit:6,sort:["date.created:desc"],fields:{include:["title","url","date.created","body","country","source"]},query:{value:p.query,operator:"AND"}})
+  const category=PROGRAMS[slug];
+  if(!category) throw new Error("Choose a valid GDOF programme category.");
+  if(!env.RELIEFWEB_APPNAME) throw new Error("ReliefWeb is not configured. Add RELIEFWEB_APPNAME to the Cloudflare Worker secrets.");
+  const endpoint=new URL("https://api.reliefweb.int/v2/reports");
+  endpoint.searchParams.set("appname",env.RELIEFWEB_APPNAME);
+  const response=await fetch(endpoint.toString(),{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Accept":"application/json"},
+    body:JSON.stringify({
+      preset:"latest",
+      profile:"list",
+      limit:8,
+      sort:["date.created:desc"],
+      fields:{include:["date.original","body","primary_country.name","country.name","source.name","theme.name","format.name"]},
+      query:{value:category.query,operator:"OR"}
+    })
   });
-  if(!response.ok) throw new Error("ReliefWeb research returned HTTP "+response.status+".");
+  if(!response.ok) {
+    const detail=(await response.text().catch(()=>"")).slice(0,300);
+    throw new Error("ReliefWeb API returned HTTP "+response.status+(detail?" — "+detail:"")+". Check the approved appname and try again.");
+  }
   const payload=await response.json();
-  const records=(payload.data||[]).map(x=>x.fields||{}).filter(x=>x.title&&x.url);
-  return records.map(x=>({title:String(x.title).slice(0,300),url:x.url,date:x["date.created"]||"",country:(x.country||[]).map(c=>c.name).join(", "),source:(x.source||[]).map(s=>s.name).join(", "),excerpt:String(x.body||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").slice(0,1800)}));
+  const records=(payload.data||[]).map(item=>{
+    const fields=item.fields||{};
+    const countries=fields.primary_country?.name
+      ? [fields.primary_country.name]
+      : Array.isArray(fields.country)?fields.country.map(c=>c.name).filter(Boolean)
+      : fields.country?.name?[fields.country.name]:[];
+    const sources=Array.isArray(fields.source)?fields.source.map(s=>s.name).filter(Boolean):[];
+    const themes=Array.isArray(fields.theme)?fields.theme.map(t=>t.name).filter(Boolean):[];
+    const body=String(fields.body||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim();
+    return {
+      id:item.id||null,
+      title:String(fields.title||"").slice(0,300),
+      url:String(fields.url||""),
+      date:fields.date?.created||fields["date.created"]||"",
+      original_date:fields.date?.original||fields["date.original"]||"",
+      country:countries.join(", "),
+      source:sources.join(", "),
+      themes,
+      excerpt:body.slice(0,1800)
+    };
+  }).filter(item=>item.title&&/^https:\/\//i.test(item.url));
+  return records;
 }
 async function pexelsMedia(env,query) {
   if(!env.PEXELS_API_KEY) throw new Error("Pexels is not configured. Add PEXELS_API_KEY before generating stories.");
@@ -376,12 +409,26 @@ async function adminApi(request, env, url) {
     await audit(env,user.email,"partnership.records.updated",`Saved ${partnerships.length} partner and grant records`);
     return json({ok:true,partnerships});
   }
+  if (path==="/api/admin/reliefweb-test" && method==="POST") {
+    if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can test the ReliefWeb connection."},403);
+    const body=await request.json().catch(()=>({}));
+    const slug=String(body.category_slug||"food-security-family-support");
+    if (!PROGRAMS[slug]) return json({error:"Choose a valid GDOF programme category."},400);
+    try {
+      const reports=await reliefWebResearch(env,slug);
+      await audit(env,user.email,"reliefweb.connection.tested",slug+" · "+reports.length+" reports");
+      return json({ok:true,category:PROGRAMS[slug].label,count:reports.length,reports:reports.map(({id,title,url,date,original_date,country,source,themes})=>({id,title,url,date,original_date,country,source,themes}))});
+    } catch(error) {
+      await audit(env,user.email,"reliefweb.connection.failed",String(error.message||"Unknown error").slice(0,300));
+      return json({error:String(error.message||"ReliefWeb connection failed.")},502);
+    }
+  }
   if (path==="/api/admin/generate-auto" && method==="POST") {
     if (!onlySuperAdmin(user)) return json({error:"Only a Super Admin can generate AI stories."},403);
     const body=await request.json().catch(()=>({})), slug=String(body.category_slug||"");
     if (!PROGRAMS[slug]) return json({error:"Choose one of the seven GDOF programme categories."},400);
-    const research=await publicWebResearch(env,slug);
-    if (!research.length) return json({error:"No relevant ReliefWeb source records were found. No draft was created."},422);
+    const research=await reliefWebResearch(env,slug);
+    if (!research.length) return json({error:"ReliefWeb returned no matching published reports for this programme. No draft was created. Try another programme category or retry later."},422);
     let media={images:[],video:null};
     try { media=await pexelsMedia(env,PROGRAMS[slug].query); } catch(mediaError) { await audit(env,user.email,"story.media.fallback_unavailable",String(mediaError.message||"Pexels unavailable").slice(0,300)); }
     const draft=await draftWithOpenAI(env,{slug,research,media});
