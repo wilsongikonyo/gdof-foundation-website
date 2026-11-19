@@ -563,7 +563,7 @@ published:false,
     const title=String(body.title||"").trim().slice(0,180),html=String(body.html||"");
     if(!title||!html||html.length>1500000)return json({error:"A title and print-ready document content (up to 1.5 MB) are required."},400);
     const id=String(body.id||crypto.randomUUID()).slice(0,80);
-    const records=await readDocumentRegister();
+    let records=await readDocumentRegister();
     let record=records.find(x=>x.id===id);
     if(record&&record.status==="APPROVED")return json({error:"Approved records are locked. Create a new document or version through an authorized correction process."},409);
     const versionId=crypto.randomUUID(),versionNumber=record?(Math.max(0,...record.versions.map(v=>Number(v.version)||0))+1):1;
