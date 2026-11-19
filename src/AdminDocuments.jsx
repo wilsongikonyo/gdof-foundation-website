@@ -151,7 +151,7 @@ export default function AdminDocuments({ onNotice }) {
   const [includeRecipient,setIncludeRecipient]=useState(false);
   const [includePreparedBy,setIncludePreparedBy]=useState(true);
   const [notice,setLocalNotice]=useState("");
-  const [documents,setDocuments]=useState([]); const [activeDocument,setActiveDocument]=useState(null); const [loadingDocuments,setLoadingDocuments]=useState(false); const [saving,setSaving]=useState(false); const [changeNote,setChangeNote]=useState("");
+  const [documents,setDocuments]=useState([]); const [archiveQuery,setArchiveQuery]=useState(""); const [archiveCategory,setArchiveCategory]=useState("ALL"); const [archiveStatus,setArchiveStatus]=useState("ALL"); const [archiveSort,setArchiveSort]=useState("newest"); const [activeDocument,setActiveDocument]=useState(null); const [loadingDocuments,setLoadingDocuments]=useState(false); const [saving,setSaving]=useState(false); const [changeNote,setChangeNote]=useState("");
   const [manualTitle,setManualTitle]=useState("");
   const [manualType,setManualType]=useState("Supporting Document");
   const [manualReference,setManualReference]=useState("");
@@ -159,6 +159,22 @@ export default function AdminDocuments({ onNotice }) {
   const [manualFile,setManualFile]=useState(null);
   const [manualUploading,setManualUploading]=useState(false);
   const formattedDate=useMemo(()=>documentDate?new Date(documentDate+"T00:00:00").toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"}):"",[documentDate]);
+  const archiveCategories=useMemo(()=>[...new Set(documents.map(d=>d.documentType).filter(Boolean))].sort((x,y)=>x.localeCompare(y)),[documents]);
+  const archiveStats=useMemo(()=>({
+    total:documents.length,
+    approved:documents.filter(d=>d.status==="APPROVED").length,
+    pending:documents.filter(d=>d.status==="PENDING_APPROVAL").length,
+    drafts:documents.filter(d=>d.status==="DRAFT"||d.status==="RETURNED").length
+  }),[documents]);
+  const filteredDocuments=useMemo(()=>{
+    const q=archiveQuery.trim().toLowerCase();
+    return documents.filter(doc=>{
+      const matchesCategory=archiveCategory==="ALL"||doc.documentType===archiveCategory;
+      const matchesStatus=archiveStatus==="ALL"||doc.status===archiveStatus;
+      const haystack=[doc.title,doc.documentNumber,doc.reference,doc.documentType,doc.recipient,doc.preparedBy,doc.createdBy,doc.updatedBy,doc.documentDate,doc.approvedBy,doc.returnNote,...(doc.versions||[]).flatMap(v=>[v.pdfName,v.createdBy,v.changeNote,v.version])].join(" ").toLowerCase();
+      return matchesCategory&&matchesStatus&&(!q||haystack.includes(q));
+    }).sort((x,y)=>archiveSort==="oldest"?String(x.documentDate||x.createdAt).localeCompare(String(y.documentDate||y.createdAt)):String(y.updatedAt||y.createdAt).localeCompare(String(x.updatedAt||x.createdAt)));
+  },[documents,archiveQuery,archiveCategory,archiveStatus,archiveSort]);
 
   const chooseTemplate=value=>{
     setKind(value); setTitle(value==="Custom Document"?"":value);
@@ -237,6 +253,23 @@ export default function AdminDocuments({ onNotice }) {
       <div className="gdof-doc-actions"><button type="button" onClick={uploadManualDocument} disabled={manualUploading}>{manualUploading?"Uploading…":"Upload to Document Register"}</button></div>
       <p className="admin-help">PDF only · Maximum 15 MB. The upload is saved as a draft and must be reviewed and approved through the normal register workflow.</p>
     </section>
-    <section className="gdof-register"><div className="gdof-register-head"><div><h2>Official Document Register</h2><p>Saved drafts, version history, approvals and final PDFs.</p></div><button type="button" className="admin-secondary" onClick={loadDocuments} disabled={loadingDocuments}>{loadingDocuments?"Refreshing…":"Refresh register"}</button></div>{loadingDocuments?<p>Loading documents…</p>:documents.length===0?<p className="admin-muted">No documents have been saved yet.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Document</th><th>Versions</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead><tbody>{documents.map(doc=><tr key={doc.id}><td><b>{doc.title}</b><small>{doc.documentNumber}</small></td><td>{doc.versions?.length||0}</td><td>{String(doc.status||"DRAFT").replace("_"," ")}</td><td>{doc.updatedAt?new Date(doc.updatedAt).toLocaleString():"—"}</td><td><div className="gdof-register-actions"><button type="button" className="admin-secondary" onClick={()=>editDocument(doc)}>Open</button>{doc.versions?.[0]?.pdfKey&&<button type="button" className="admin-secondary" onClick={()=>downloadFile(doc,"pdf",doc.versions[0])}>PDF</button>}{doc.status==="PENDING_APPROVAL"&&<button type="button" onClick={()=>updateStatus(doc,"APPROVED")} disabled={saving}>Approve</button>}{doc.status==="PENDING_APPROVAL"&&<button type="button" className="admin-secondary" onClick={()=>updateStatus(doc,"RETURNED")} disabled={saving}>Return</button>}</div>{doc.versions?.length>1&&<details><summary>Version history</summary>{doc.versions.map(v=><div className="gdof-version" key={v.id}>v{v.version} · {new Date(v.createdAt).toLocaleString()} · {v.createdBy} <button type="button" className="admin-secondary" onClick={()=>downloadFile(doc,"html",v)}>Source</button>{v.pdfKey&&<button type="button" className="admin-secondary" onClick={()=>downloadFile(doc,"pdf",v)}>PDF</button>}</div>)}</details>}</td></tr>)}</tbody></table></div>}</section>
+    <section className="gdof-register">
+      <div className="gdof-register-head"><div><h2>GDOF Institutional Document Archive</h2><p>The controlled repository for the Foundation’s official records, historical documents and approved versions.</p></div><button type="button" className="admin-secondary" onClick={loadDocuments} disabled={loadingDocuments}>{loadingDocuments?"Refreshing…":"Refresh archive"}</button></div>
+      <div className="gdof-archive-stats">
+        <div><strong>{archiveStats.total}</strong><span>All records</span></div>
+        <div><strong>{archiveStats.approved}</strong><span>Approved</span></div>
+        <div><strong>{archiveStats.pending}</strong><span>Awaiting approval</span></div>
+        <div><strong>{archiveStats.drafts}</strong><span>Draft / returned</span></div>
+      </div>
+      <div className="gdof-archive-toolbar">
+        <label className="gdof-archive-search"><span>Search the archive</span><input type="search" value={archiveQuery} onChange={e=>setArchiveQuery(e.target.value)} placeholder="Search title, reference, document number, author, keyword…"/></label>
+        <label><span>Document category</span><select value={archiveCategory} onChange={e=>setArchiveCategory(e.target.value)}><option value="ALL">All categories</option>{archiveCategories.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+        <label><span>Record status</span><select value={archiveStatus} onChange={e=>setArchiveStatus(e.target.value)}><option value="ALL">All statuses</option><option value="DRAFT">Draft</option><option value="PENDING_APPROVAL">Pending approval</option><option value="APPROVED">Approved</option><option value="RETURNED">Returned</option></select></label>
+        <label><span>Sort records</span><select value={archiveSort} onChange={e=>setArchiveSort(e.target.value)}><option value="newest">Recently updated</option><option value="oldest">Oldest first</option></select></label>
+      </div>
+      <div className="gdof-archive-resultline"><span>{filteredDocuments.length} of {documents.length} records shown</span><button type="button" className="admin-secondary" onClick={()=>{setArchiveQuery("");setArchiveCategory("ALL");setArchiveStatus("ALL");setArchiveSort("newest");}}>Clear filters</button></div>
+      {loadingDocuments?<p>Loading archive records…</p>:documents.length===0?<div className="gdof-archive-empty"><b>The archive is ready for records.</b><p>Documents created in this centre and PDFs uploaded by authorised administrators will be registered here. Add legacy records using “Manually upload an existing document”.</p></div>:filteredDocuments.length===0?<div className="gdof-archive-empty"><b>No matching documents found.</b><p>Try a different keyword or clear one or more filters.</p></div>:<div className="admin-table-wrap"><table><thead><tr><th>Document / reference</th><th>Category</th><th>Versions</th><th>Status</th><th>Last updated</th><th>Archive actions</th></tr></thead><tbody>{filteredDocuments.map(doc=><tr key={doc.id}><td><b>{doc.title}</b><small>{doc.documentNumber}{doc.reference?" · "+doc.reference:""}</small><small>Document date: {doc.documentDate||"Not recorded"}</small></td><td>{doc.documentType||"Uncategorised"}</td><td>{doc.versions?.length||0}</td><td><span className={"gdof-status gdof-status-"+String(doc.status||"DRAFT").toLowerCase()}>{String(doc.status||"DRAFT").replaceAll("_"," ")}</span></td><td>{doc.updatedAt?new Date(doc.updatedAt).toLocaleString():"—"}</td><td><div className="gdof-register-actions"><button type="button" className="admin-secondary" onClick={()=>editDocument(doc)}>Open record</button>{doc.versions?.[0]?.pdfKey&&<button type="button" className="admin-secondary" onClick={()=>downloadFile(doc,"pdf",doc.versions[0])}>Latest PDF</button>}{doc.status==="PENDING_APPROVAL"&&<button type="button" onClick={()=>updateStatus(doc,"APPROVED")} disabled={saving}>Approve</button>}{doc.status==="PENDING_APPROVAL"&&<button type="button" className="admin-secondary" onClick={()=>updateStatus(doc,"RETURNED")} disabled={saving}>Return</button>}</div>{doc.versions?.length>0&&<details><summary>View version history ({doc.versions.length})</summary>{doc.versions.map(v=><div className="gdof-version" key={v.id}><span><b>v{v.version}</b> · {new Date(v.createdAt).toLocaleString()} · {v.createdBy||"Administrator"}{v.changeNote?" · "+v.changeNote:""}</span><div><button type="button" className="admin-secondary" onClick={()=>downloadFile(doc,"html",v)}>Source</button>{v.pdfKey&&<button type="button" className="admin-secondary" onClick={()=>downloadFile(doc,"pdf",v)}>PDF</button>}</div></div>)}</details>}</td></tr>)}</tbody></table></div>}
+      <p className="gdof-archive-retention"><b>Records management:</b> Approved and superseded versions remain in the archive for historical reference. Do not overwrite or delete an executed record; corrections should be recorded as a new version or a separately linked document.</p>
+    </section>
   </section>;
 }
