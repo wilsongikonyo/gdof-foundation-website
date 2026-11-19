@@ -8,6 +8,134 @@ const templates = {
   "Official Letter": "Dear [Recipient],\n\n[Write the purpose of this letter and the relevant details.]\n\nPlease contact the Foundation if any further information is required.\n\nYours sincerely,",
   "Policy / Procedure": "1. PURPOSE\n[Explain why this policy exists]\n\n2. SCOPE\n[Who and what it applies to]\n\n3. POLICY STATEMENT\n[State the policy]\n\n4. ROLES AND RESPONSIBILITIES\n[Set out responsibilities]\n\n5. PROCEDURE\n[Describe the steps]\n\n6. RECORDS AND REVIEW\n[State recordkeeping and review arrangements]\n\n7. APPROVAL\n[Record approving authority and effective date]",
   "Programme / Activity Report": "1. EXECUTIVE SUMMARY\n[Summarise the activity]\n\n2. OBJECTIVES\n[List approved objectives]\n\n3. ACTIVITIES COMPLETED\n[Describe verified activities]\n\n4. RESULTS AND EVIDENCE\n[Report confirmed outputs and outcomes]\n\n5. FINANCIAL SUMMARY\n[Include approved figures and explain variances]\n\n6. CHALLENGES AND LESSONS\n[Describe issues and learning]\n\n7. NEXT STEPS\n[List actions and responsible persons]",
+  "GDOF Corporate Bylaws": `GLOBAL DEVELOPMENT AND OPPORTUNITY FOUNDATION, INC.
+BYLAWS
+A Delaware Nonstock, Nonprofit Corporation
+Delaware File No. 10829286 | Incorporated November 4, 2026
+Empowering People. Transforming Communities.
+
+BOARD-APPROVED GOVERNING DOCUMENT
+Board approval date: November 19, 2026
+These Bylaws are approved by the Board of Directors, subject to confirmation that all provisions are consistent with the filed Certificate of Incorporation and the Delaware General Corporation Law. The Secretary shall enter the signed adoption record in the corporate minute book.
+
+ARTICLE I — NAME, STATUS AND OFFICES
+1.01 Name. The name of the corporation is Global Development and Opportunity Foundation, Inc. (the “Corporation” or “Foundation”).
+1.02 Legal status. The Corporation is a Delaware nonstock corporation with no capital stock. It shall operate exclusively for charitable and educational purposes within Section 501(c)(3) of the Internal Revenue Code (“Code”), subject to its Certificate of Incorporation and applicable law.
+1.03 Offices. The Corporation shall maintain a registered office and registered agent in Delaware and may maintain offices or conduct programs elsewhere as authorized by the Board, subject to applicable registration, licensing, fundraising and other laws.
+1.04 Governing authority. The Certificate of Incorporation controls over these Bylaws in the event of conflict. These Bylaws are subject to the Delaware General Corporation Law (“DGCL”) and other applicable law.
+
+ARTICLE II — PURPOSES AND TAX-EXEMPTION RESTRICTIONS
+2.01 Exempt purposes. The Corporation is organized and shall be operated exclusively for charitable and educational purposes within Section 501(c)(3) of the Code, including relief of poverty and distress; advancement of education; youth development and livelihoods; community improvement; emergency and humanitarian relief; and prevention of cruelty to animals and promotion of animal welfare.
+2.02 Programs. Activities may include food security and family support; scholarships and bursaries; youth entrepreneurship; employment and livelihood initiatives; community development; emergency relief; and animal rescue and welfare assistance. The Corporation may operate directly or through grants and partnerships with appropriate due diligence, oversight and records.
+2.03 No private inurement. No part of the Corporation’s net earnings shall inure to the benefit of any director, officer, member or private person, except reasonable compensation for actual services and payments furthering exempt purposes. The Corporation shall not be operated for private interests.
+2.04 Political campaigns and lobbying. The Corporation shall not participate or intervene in any political campaign for or against a candidate for public office. No substantial part of its activities shall consist of attempting to influence legislation, except as permitted by law.
+2.05 Limitation. The Corporation shall not carry on activities that are not permitted for an organization exempt under Section 501(c)(3).
+2.06 Tax representations. The Corporation shall not represent that contributions are deductible under Section 170 of the Code unless and until it has obtained IRS recognition or has another valid legal basis to make that representation.
+
+ARTICLE III — MEMBERS
+3.01 Voting membership. The Corporation shall have voting members. The initial members recorded in the organizational records are Wilson Maira Gikonyo, Rachael Maina, Mourene Maina, Samson Kibe and Morris Kyalo. The Secretary shall maintain the membership register.
+3.02 Admission. Additional members may be admitted by majority Board vote, subject to the Certificate and law. Admission shall be recorded in the register. Membership is not transferable.
+3.03 Rights. Each member in good standing has one vote on matters submitted to members by law, the Certificate or these Bylaws, including election of directors and amendments where member approval is required. Members have no ownership interest in assets and no right to distributions.
+3.04 Term and resignation. Membership continues until resignation, death, removal or dissolution. A member may resign by written notice to the Secretary. Resignation does not entitle the member to any distribution or return of contributions.
+3.05 Removal. A member may be removed for serious misconduct or material harm to the Corporation by a two-thirds vote of disinterested directors after written notice and a reasonable opportunity to respond, subject to any mandatory requirements of the Certificate and DGCL.
+3.06 Annual meetings. Members shall hold an annual meeting at a date fixed by the Board to elect directors and transact proper business. Meetings may be held in person or by remote communication as permitted by law.
+3.07 Special meetings. Special meetings may be called by the President, the Board, or members holding at least ten percent of votes entitled to be cast, or any different threshold required by the Certificate or DGCL.
+3.08 Notice. Notice shall state place, date, time and, for a special meeting, its purpose, and shall be delivered within the statutory period by a permitted method. Electronic notice may be used where lawful.
+3.09 Quorum and voting. Unless the Certificate or DGCL requires otherwise, members holding a majority of votes entitled to be cast constitute a quorum. Each member has one vote. Unless a greater vote is required, a majority of votes cast at a meeting with a quorum approves the matter.
+3.10 Proxies and remote participation. Members may vote by proxy and participate remotely to the extent permitted by the DGCL.
+3.11 Action without meeting. Member action may be taken by written or electronic consent to the extent permitted by the DGCL. Consents shall be retained with corporate records.
+
+ARTICLE IV — BOARD OF DIRECTORS
+4.01 Authority. The Board manages or directs the management of the Corporation’s affairs, subject to law and the Certificate.
+4.02 Number and initial composition. The Board shall consist of five (5) directors. The initial directors elected in the organizational records are Wilson Maira Gikonyo, Rachael Maina, Mourene Maina, Samson Kibe and Morris Kyalo.
+4.03 Election and term. Directors are elected by voting members at the annual meeting. Each serves until the next annual meeting and until a successor is elected and qualified, unless earlier resigned or removed. Directors may be reelected.
+4.04 Qualifications and independence. Directors must be natural persons committed to the Corporation’s mission. The Board should, where practicable, maintain a majority of directors independent of paid management and material financial relationships.
+4.05 Resignation and removal. A director may resign by written notice. Directors may be removed by the members entitled to elect them, with or without cause, to the extent permitted by the DGCL and Certificate.
+4.06 Vacancies. Vacancies shall be filled in the manner permitted by the DGCL and Certificate. Any director appointed to fill a vacancy serves as provided by those governing authorities.
+4.07 Meetings. The Board shall meet at least quarterly. Special meetings may be called by the President or any two directors. Notice shall be given at least two days in advance unless waived or a lawful emergency procedure applies.
+4.08 Quorum and vote. A majority of directors then in office constitutes a quorum; with five directors, three constitute a quorum. Unless a greater vote is required, a majority of directors present at a meeting with a quorum is the act of the Board.
+4.09 Remote participation and written consent. Directors may participate by communications equipment through which all can hear one another. Board action without a meeting requires the consent prescribed by the DGCL.
+4.10 Compensation. Directors receive no compensation solely for Board service but may receive reasonable documented expense reimbursement. Separate services may be compensated only after disclosure and approval by disinterested directors based on reasonable terms.
+4.11 Committees. The Board may create committees by resolution and delegate only powers permitted by the DGCL. Committees shall report to the Board and keep records.
+
+ARTICLE V — OFFICERS
+5.01 Officers. Officers shall include a President/Board Chairperson, Treasurer and Secretary. The Board may appoint additional officers as needed.
+5.02 Election and tenure. Officers are elected by the Board and serve at its pleasure until successors are appointed, subject to law and contractual rights.
+5.03 President and Chairperson. The President chairs Board and member meetings, provides Board leadership and helps ensure implementation of Board resolutions. The President may not override Board decisions.
+5.04 Treasurer. The Treasurer oversees financial reporting, budgeting, internal controls, books of account and timely financial and tax reporting, and reports to the Board.
+5.05 Secretary. The Secretary ensures notices, minutes, written consents, membership and director registers, governing documents and official records are properly maintained.
+5.06 Resignation and removal. An officer may resign by written notice and may be removed by the Board subject to applicable law and contractual rights. The Board fills vacancies.
+5.07 Initial officers. The organizational records identify Rachael Maina as President and Board Chairperson, Mourene Maina as Treasurer, and Samson Kibe as Secretary. These appointments remain subject to any subsequent valid Board action.
+
+ARTICLE VI — EXECUTIVE DIRECTOR AND MANAGEMENT
+6.01 Appointment. The Board may appoint an Executive Director to manage daily operations under Board oversight. The organizational records identify Wilson Maira Gikonyo as the initial Executive Director.
+6.02 Duties. The Executive Director implements Board-approved strategy, programs and budgets; supervises staff and volunteers; develops partnerships and fundraising proposals; maintains operational records; and reports to the Board.
+6.03 Delegated authority. The Executive Director may sign contracts and incur expenses only within authority and limits delegated by the Board.
+6.04 Accountability and conflicts. The Board retains ultimate oversight and may evaluate, compensate, suspend or remove the Executive Director. An Executive Director who is also a director shall not participate in deliberation or voting on their own compensation, performance review or personal conflict matter.
+
+ARTICLE VII — CONFLICTS OF INTEREST AND ETHICS
+7.01 Policy. The Corporation shall maintain a written Conflict of Interest Policy. Directors, officers, key employees and committee members shall promptly disclose actual, potential or perceived conflicts.
+7.02 Interested transactions. A conflicted person shall disclose material facts and shall not vote on the matter. Disinterested directors shall determine whether the transaction is fair, reasonable and in the Corporation’s best interests.
+7.03 Related parties. Transactions involving insiders or related persons/entities require advance review and approval by disinterested directors, documentation in minutes and evidence of fair terms where appropriate.
+7.04 Annual disclosure. Covered persons shall complete an annual disclosure statement and update it when circumstances change.
+7.05 Confidentiality and safeguarding. Covered persons shall protect confidential information, beneficiary dignity, personal data and charitable assets.
+
+ARTICLE VIII — FINANCES, PROPERTY AND RECORDS
+8.01 Fiscal year. The fiscal year shall be set by Board resolution; unless changed, it shall end December 31.
+8.02 Budget. The Board approves an annual budget and reviews financial performance periodically.
+8.03 Bank accounts. Funds shall be held in accounts titled in the Corporation’s legal name at institutions approved by the Board. Corporate funds shall be kept separate from personal funds and from funds of any separate business or entity.
+8.04 Financial controls. The Board shall adopt written controls for receiving, depositing, disbursing and reconciling funds, designate authorized signatories and establish dual-approval thresholds. No person may approve a payment to themselves.
+8.05 Restricted funds. Lawful donor restrictions and grant conditions shall be honored and tracked separately. The Corporation may decline gifts inconsistent with its mission or legal obligations.
+8.06 Records. The Corporation shall maintain accurate accounting records, minutes, consents, registers, governing documents, contracts, grant files, donor restrictions and tax and regulatory records.
+8.07 Inspection. Members and directors may inspect records as provided by law, subject to reasonable procedures protecting confidential, privileged or sensitive information.
+8.08 Financial review. The Treasurer shall provide periodic reports. The Board may require an independent review or audit where appropriate or legally required.
+8.09 Separation of entities. GDOF assets, donations, accounts, contracts and records shall remain separate from Wilmarteckh LLC and every other separate legal person or business.
+
+ARTICLE IX — INDEMNIFICATION AND INSURANCE
+9.01 Indemnification. The Corporation may indemnify directors, officers, employees and agents to the fullest extent permitted by the DGCL, subject to statutory procedures and limitations.
+9.02 Insurance. The Corporation may purchase directors’ and officers’ liability and other insurance as the Board considers appropriate.
+9.03 Non-exclusivity. These rights do not exclude other rights available under law, the Certificate, Board resolution or agreement.
+
+ARTICLE X — NOTICES AND ELECTRONIC COMMUNICATIONS
+10.01 Notices. Notices may be delivered personally, by mail, courier or electronic transmission as permitted by law.
+10.02 Waiver. A person entitled to notice may waive it in writing or electronic transmission. Attendance waives notice except where the person attends solely to object to the legality of the meeting.
+10.03 Electronic records. Electronic records, signatures, notices and remote meetings may be used to the extent permitted by law. Records shall be retained in reproducible form.
+
+ARTICLE XI — AMENDMENTS
+11.01 Authority. These Bylaws may be amended by the voting members as provided by the DGCL and Certificate. The Board may amend them only to the extent expressly authorized by the Certificate or applicable law, without impairing member rights.
+11.02 Notice. Notice of a proposed amendment shall describe the change with reasonable detail.
+11.03 Tax restrictions. No amendment may authorize private inurement, prohibited political campaign activity or operation for a non-exempt purpose.
+
+ARTICLE XII — DISSOLUTION
+12.01 Procedure. Dissolution shall occur only in accordance with the DGCL, Certificate and applicable law.
+12.02 Distribution. After payment or provision for liabilities, remaining assets shall be distributed exclusively for one or more exempt purposes within Section 501(c)(3) of the Code, or to the federal government or a state or local government for a public purpose. No assets shall be distributed to members, directors, officers or private persons.
+12.03 Recipient. The Board shall select eligible charitable recipients consistent with this Article and applicable law.
+
+ARTICLE XIII — GENERAL
+13.01 Severability. If any provision is invalid, the remainder remains effective to the fullest extent permitted by law.
+13.02 Construction. Headings are for convenience only. References to the Code and DGCL include amendments and successor provisions.
+13.03 Policies. The Board may adopt policies consistent with these Bylaws, including conflict of interest, financial controls, document retention, whistleblower, safeguarding, grants, procurement and data protection policies.
+13.04 Effective date. These Bylaws take effect upon valid adoption by the body authorized under the Certificate and DGCL. The Secretary shall record the adoption date and preserve the signed copy.
+
+BOARD ADOPTION RECORD
+The Board of Directors has approved these Bylaws on November 19, 2026. The Secretary shall record the approval in the official minutes and retain the executed adoption certificate with the corporate records. This statement does not substitute for signatures or any member approval required by the Certificate or Delaware law.
+
+ADOPTION CERTIFICATE
+Adoption date: November 19, 2026
+Board Chairperson: Rachael Maina
+Signature: ____________________________________  Date: ______________
+Secretary: Samson Kibe
+Signature: ____________________________________  Date: ______________
+Treasurer: Mourene Maina
+Signature: ____________________________________  Date: ______________
+Director: Wilson Maira Gikonyo
+Signature: ____________________________________  Date: ______________
+Director: Morris Kyalo
+Signature: ____________________________________  Date: ______________
+
+SECRETARY’S CERTIFICATION
+I, Samson Kibe, Secretary of the Corporation, certify that this is a true copy of the Bylaws approved by the Board on the date stated above, subject to completion of the Corporation’s formal adoption record and any approvals required by the Certificate and applicable law.
+Signature: ____________________________________  Date: ______________`,
   "Custom Document": ""
 };
 
