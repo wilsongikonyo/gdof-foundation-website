@@ -570,7 +570,7 @@ published:false,
     const htmlKey="documents/"+id+"/"+versionId+".html";
     await env.GDOF_MEDIA.put(htmlKey,html,{httpMetadata:{contentType:"text/html; charset=utf-8",cacheControl:"private, no-store"},customMetadata:{documentId:id,versionId,uploadedBy:user.email,kind:"document-html"}});
     const now=new Date().toISOString();
-    const version={id:versionId,version:versionNumber,htmlKey,pdfKey:record?.versions?.[0]?.pdfKey||null,pdfName:record?.versions?.[0]?.pdfName||null,createdAt:now,createdBy:user.email,changeNote:String(body.changeNote||"").slice(0,500)};
+    const version={id:versionId,version:versionNumber,htmlKey,pdfKey:null,pdfName:null,createdAt:now,createdBy:user.email,changeNote:String(body.changeNote||"").slice(0,500)};
     if(!record){
       const stamp=now.slice(0,10).replace(/-/g,"");
       record={id,documentNumber:"GDOF/DOC/"+stamp+"/"+crypto.randomUUID().slice(0,6).toUpperCase(),title,documentType:String(body.documentType||"Custom Document").slice(0,80),reference:String(body.reference||"").slice(0,100),documentDate:String(body.documentDate||now.slice(0,10)).slice(0,10),recipient:String(body.recipient||"").slice(0,240),preparedBy:String(body.preparedBy||"").slice(0,180),status:"DRAFT",createdAt:now,createdBy:user.email,updatedAt:now,updatedBy:user.email,versions:[]};
