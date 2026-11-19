@@ -82,6 +82,18 @@ export default function AdminAIStudio({view="studio",onNotice=()=>{}}) {
       setDrafts(list=>list.map(x=>x.id===story.id?result.story:x));onNotice("Draft media updated.");
     }catch(e){setError(e.message);}finally{setUploading("");}
   };
+
+  const generateImageCaption=async(story,image,index)=>{
+    setUploading(story.id+"caption"+index);setError("");
+    try{
+      const generated=await request("/api/admin/generate-image-caption",{method:"POST",body:JSON.stringify({image_url:image.url})});
+      const current=story.media||{images:story.images||[],videos:[]};
+      const images=(current.images||[]).map((item,i)=>i===index?{...item,caption:generated.caption}:item);
+      const result=await request("/api/admin/update-story",{method:"PUT",body:JSON.stringify({id:story.id,media:{...current,images}})});
+      setDrafts(list=>list.map(x=>x.id===story.id?result.story:x));
+      onNotice("AI caption generated and saved.");
+    }catch(e){setError(e.message);}finally{setUploading("");}
+  };
   const decision=async(id,action)=>{
     const prompt=action==="approve"?"Approve this story and publish it on the public website?":"Reject and permanently remove this draft?";
     if(!window.confirm(prompt))return;
@@ -101,7 +113,7 @@ export default function AdminAIStudio({view="studio",onNotice=()=>{}}) {
         <label>Summary<textarea rows="3" value={fields.summary??story.summary} onChange={e=>setEditing(s=>({...s,[story.id]:{...s[story.id],summary:e.target.value}}))}/></label>
         <label>Full story<textarea rows="9" value={fields.full_story??story.full_story??story.body} onChange={e=>setEditing(s=>({...s,[story.id]:{...s[story.id],full_story:e.target.value}}))}/></label>
         {story.field_notes&&<details><summary>Original field notes</summary><p>{story.field_notes}</p></details>}
-        {((media.images||[]).some(m=>m.source==="pexels_open_source")||media.video?.source==="pexels_open_source")&&<p className="pexels-credit"><a href="https://www.pexels.com/" target="_blank" rel="noreferrer">Photos and videos provided by Pexels ↗</a> · </p>}<div className="ai-media-preview">{(media.images||[]).map((m,i)=><figure key={m.url+i}><img src={m.url} alt={m.caption||"Story media preview"}/><figcaption>{m.source==="superadmin_upload"?"Uploaded by Super Admin":"Pexels photo"} · {m.photographer?m.photographer+" · ":""}{m.caption||""}{m.source_url&&<a href={m.source_url} target="_blank" rel="noreferrer"> Source ↗</a>}</figcaption></figure>)}</div>
+        {((media.images||[]).some(m=>m.source==="pexels_open_source")||media.video?.source==="pexels_open_source")&&<p className="pexels-credit"><a href="https://www.pexels.com/" target="_blank" rel="noreferrer">Photos and videos provided by Pexels ↗</a> · </p>}<div className="ai-media-preview">{(media.images||[]).map((m,i)=><figure key={m.url+i}><img src={m.url} alt={m.caption||"Story media preview"}/><figcaption>{m.source==="superadmin_upload"?"Uploaded by Super Admin":"Pexels photo"} · {m.photographer?m.photographer+" · ":""}{m.caption||""}{m.source_url&&<a href={m.source_url} target="_blank" rel="noreferrer"> Source ↗</a>}<button type="button" className="admin-secondary" disabled={uploading===story.id+"caption"+i} onClick={()=>generateImageCaption(story,m,i)}>{uploading===story.id+"caption"+i?"Generating caption…":"✨ Generate AI caption"}</button></figcaption></figure>)}</div>
         {media.video?.url&&<div className="ai-video-preview"><video controls preload="metadata" src={media.video.url}/><small>{media.video.source==="superadmin_upload"?"Super Admin video":"Pexels video"} {media.video.source_url&&<a href={media.video.source_url} target="_blank" rel="noreferrer">Source ↗</a>}</small></div>}
         {story.reliefweb_verification&&<div className="ai-sources"><strong>ReliefWeb check · {story.reliefweb_verification.status==="matches_found"?"Matches found":"No matching reports found"}</strong><small>Checked {new Date(story.reliefweb_verification.checked_at).toLocaleString()}</small>{(story.reliefweb_verification.sources||[]).map(s=><a key={s.url} href={s.url} target="_blank" rel="noreferrer">{s.title} ↗</a>)}</div>}{story.research_sources?.length>0&&<div className="ai-sources"><strong>Research references</strong>{story.research_sources.map(s=><a key={s.url} href={s.url} target="_blank" rel="noreferrer">{s.title} ↗</a>)}</div>}
         <div className="ai-media-actions"><label className="media-upload-button">＋ Add / replace image<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e=>e.target.files?.[0]&&replaceMedia(story,e.target.files[0],"image")}/></label><label className="media-upload-button">＋ Add / replace video<input type="file" accept="video/mp4,video/webm,video/quicktime" onChange={e=>e.target.files?.[0]&&replaceMedia(story,e.target.files[0],"video")}/></label>{uploading.startsWith(story.id)&&<small>Uploading…</small>}</div>
