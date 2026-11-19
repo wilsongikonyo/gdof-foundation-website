@@ -182,7 +182,17 @@ async function draftWithOpenAI(env,{slug,notes,research,media}) {
     ? "Create an editorial draft from these Super Admin field notes. Treat only the notes as facts; identify unverified items as [VERIFY]. Do not imply the idea has already happened. Category: "+category.label+". Notes: "+notes
     : "Create a concise, source-grounded external initiative profile relevant to GDOF's category "+category.label+". It is NOT a GDOF project. Use only the source material below. Do not infer unreported impact or attribute work to GDOF. Cite source names, dates and links in the full story where available. Research records: "+JSON.stringify(research);
   const response=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+env.OPENAI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({model:env.OPENAI_MODEL||"gpt-4.1-mini",response_format:{type:"json_schema",json_schema:{name:"gdof_story",strict:true,schema:{type:"object",additionalProperties:false,properties:{title:{type:"string"},summary:{type:"string"},full_story:{type:"string"}},required:["title","summary","full_story"]}}},messages:[{role:"system",content:system},{role:"user",content:user}],temperature:0.2})});
-  if(!response.ok) throw new Error("OpenAI content generation failed with HTTP "+response.status+".");
+  if(!response.ok) {
+    let detail={}; try { detail=await response.json(); } catch {}
+    const code=String(detail.error?.code||detail.error?.type||"");
+    if(response.status===429 && /insufficient_quota|billing_hard_limit|usage_limit/i.test(code+" "+String(detail.error?.message||""))) {
+      throw new Error("OpenAI API quota or billing limit reached. Add a payment method or increase your API budget in the OpenAI Platform, then try again. This is separate from a ChatGPT subscription.");
+    }
+    if(response.status===429) {
+      throw new Error("OpenAI rate limit reached. Wait 30–60 seconds and try again. If it continues, check your API usage limits and project rate limits in the OpenAI Platform.");
+    }
+    throw new Error("OpenAI story generation failed (HTTP "+response.status+"): "+String(detail.error?.message||"Check the OpenAI API key, project permissions and selected model.").slice(0,350));
+  }
   const payload=await response.json();
   let parsed; try { parsed=JSON.parse(payload.choices?.[0]?.message?.content||"{}"); } catch { throw new Error("AI returned an unreadable story draft. Please retry."); }
   const title=String(parsed.title||"").trim(), summary=String(parsed.summary||"").trim(), full_story=String(parsed.full_story||"").trim();
@@ -444,11 +454,8 @@ async function adminApi(request, env, url) {
     const media=body.media&&typeof body.media==="object"?body.media:{};
     let images=Array.isArray(media.images)?media.images.filter(x=>x&&typeof x.url==="string"&&x.url.startsWith("/media/uploads/")).slice(0,6).map(x=>({...x,source:"superadmin_upload"})):[];
     let video=media.video&&typeof media.video.url==="string"&&media.video.url.startsWith("/media/uploads/")?{...media.video,source:"superadmin_upload"}:null;
-    if(images.length<2||!video){
-      const fallback=await pexelsMedia(env,PROGRAMS[slug].query);
-      if(images.length<2) images=[...images,...fallback.images].slice(0,3);
-      if(!video) video=fallback.video;
-    }
+    // Manual field-note generation is independent of ReliefWeb and Pexels.
+    // Photos and video are optional; missing media must never block AI story writing.
     const draft=await draftWithOpenAI(env,{slug,notes,media:{images,video}});
     const story={id:crypto.randomUUID(),category_slug:slug,program:PROGRAMS[slug].number,generation_mode:"field_notes",title:draft.title,summary:draft.summary,body:draft.full_story,full_story:draft.full_story,field_notes:notes,media:{images,video},images,video_url:video?.url||"",video_source:video?.source||"none",status:"PENDING_APPROVAL",published:false,created_at:new Date().toISOString(),approved_at:null,created_by:user.email};
     const stories=await readStories(D); stories.unshift(story); await writeStories(D,stories);
