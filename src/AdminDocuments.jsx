@@ -152,6 +152,12 @@ export default function AdminDocuments({ onNotice }) {
   const [includePreparedBy,setIncludePreparedBy]=useState(true);
   const [notice,setLocalNotice]=useState("");
   const [documents,setDocuments]=useState([]); const [activeDocument,setActiveDocument]=useState(null); const [loadingDocuments,setLoadingDocuments]=useState(false); const [saving,setSaving]=useState(false); const [changeNote,setChangeNote]=useState("");
+  const [manualTitle,setManualTitle]=useState("");
+  const [manualType,setManualType]=useState("Supporting Document");
+  const [manualReference,setManualReference]=useState("");
+  const [manualDate,setManualDate]=useState(new Date().toISOString().slice(0,10));
+  const [manualFile,setManualFile]=useState(null);
+  const [manualUploading,setManualUploading]=useState(false);
   const formattedDate=useMemo(()=>documentDate?new Date(documentDate+"T00:00:00").toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"}):"",[documentDate]);
 
   const chooseTemplate=value=>{
@@ -170,6 +176,23 @@ export default function AdminDocuments({ onNotice }) {
   const printDocument=()=>{if(!title.trim()||!body.trim()){setLocalNotice("Add a document title and content before printing.");return;}const win=window.open("","_blank");if(!win){setLocalNotice("Allow pop-ups for the admin site and try again.");return;}win.document.open();win.document.write(buildHtml().replace("</body>","<script>window.onload=()=>setTimeout(()=>window.print(),350);<\\/script></body>"));win.document.close();setLocalNotice("Choose your printer or Save as PDF.");};
   const saveDraft=async()=>{if(!title.trim()||!body.trim()){setLocalNotice("A title and document content are required.");return;}setSaving(true);try{const result=await api("/api/admin/documents",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:activeDocument?.id,title,documentType:kind,reference,documentDate,recipient:includeRecipient?recipient:"",preparedBy:includePreparedBy?preparedBy:"",html:buildHtml(),changeNote})});setActiveDocument(result.document);setChangeNote("");await loadDocuments();setLocalNotice("Draft version saved in the GDOF register.");}catch(err){setLocalNotice(err.message);}finally{setSaving(false);}};
   const uploadPdf=async e=>{const file=e.target.files?.[0];e.target.value="";if(!file)return;if(!activeDocument){setLocalNotice("Save the draft first.");return;}const form=new FormData();form.append("file",file);setSaving(true);try{const response=await fetch("/api/admin/documents/"+encodeURIComponent(activeDocument.id)+"/pdf",{method:"POST",credentials:"same-origin",body:form});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||"PDF upload failed.");setActiveDocument(result.document);await loadDocuments();setLocalNotice("PDF attached to this document version.");}catch(err){setLocalNotice(err.message);}finally{setSaving(false);}};
+  const uploadManualDocument=async()=>{
+    if(!manualTitle.trim()||!manualFile){setLocalNotice("Enter a document title and choose a PDF.");return;}
+    if(manualFile.type!=="application/pdf"){setLocalNotice("Only PDF files are accepted.");return;}
+    if(manualFile.size>15*1024*1024){setLocalNotice("PDF files must be 15 MB or smaller.");return;}
+    setManualUploading(true);
+    try{
+      const safeTitle=esc(manualTitle.trim());
+      const html='<!doctype html><html><head><meta charset="utf-8"><title>'+safeTitle+'</title></head><body><h1>'+safeTitle+'</h1><p>Manually uploaded official document. The original PDF is attached to this register record.</p></body></html>';
+      const saved=await api("/api/admin/documents",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:manualTitle.trim(),documentType:manualType,reference:manualReference,documentDate:manualDate,preparedBy:"Manually uploaded by authorized administrator",html,changeNote:"Original PDF manually uploaded"})});
+      const form=new FormData();form.append("file",manualFile);
+      const response=await fetch("/api/admin/documents/"+encodeURIComponent(saved.document.id)+"/pdf",{method:"POST",credentials:"same-origin",body:form});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||"PDF upload failed.");
+      setActiveDocument(result.document);setManualTitle("");setManualReference("");setManualFile(null);await loadDocuments();setLocalNotice("PDF uploaded and added to the Official Document Register as a draft.");
+    }catch(err){setLocalNotice(err.message);}
+    finally{setManualUploading(false);}
+  };
   const updateStatus=async(doc,status)=>{setSaving(true);try{const result=await api("/api/admin/documents/"+encodeURIComponent(doc.id)+"/status",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});setActiveDocument(result.document);await loadDocuments();setLocalNotice("Document status updated.");}catch(err){setLocalNotice(err.message);}finally{setSaving(false);}};
   const downloadFile=(doc,type,v)=>window.open("/api/admin/documents/"+encodeURIComponent(doc.id)+"/files/"+type+"?version="+encodeURIComponent(v.id),"_blank");
   const editDocument=async doc=>{try{const v=doc.versions?.[0];const response=await fetch("/api/admin/documents/"+encodeURIComponent(doc.id)+"/files/html?version="+encodeURIComponent(v.id),{credentials:"same-origin"});if(!response.ok)throw new Error("Could not load saved version.");const html=await response.text(),parsed=new DOMParser().parseFromString(html,"text/html");setActiveDocument(doc);setTitle(doc.title);setKind(doc.documentType||"Custom Document");setReference(doc.reference||"");setDocumentDate(doc.documentDate||"");setRecipient(doc.recipient||"");setPreparedBy(doc.preparedBy||"");setBody(parsed.querySelector("main.body")?.innerText||"");setIncludeRecipient(Boolean(doc.recipient));setIncludePreparedBy(Boolean(doc.preparedBy));setLocalNotice("Loaded latest version. Saving creates a new version.");}catch(err){setLocalNotice(err.message);}};
@@ -202,6 +225,18 @@ export default function AdminDocuments({ onNotice }) {
         <p className="gdof-doc-warning">Only use signature images or execute a document after the relevant signatories have approved that specific document. This template provides blank signature fields by default.</p>
       </aside>
     </div>
+    <section className="gdof-manual-upload">
+      <div><h2>Manually upload an existing document</h2><p>Upload a PDF created outside the Document Centre, such as signed bylaws, board minutes, certificates, policies or official correspondence.</p></div>
+      <div className="gdof-manual-grid">
+        <label>Document title<input value={manualTitle} onChange={e=>setManualTitle(e.target.value)} placeholder="e.g. Signed GDOF Corporate Bylaws" maxLength="180"/></label>
+        <label>Document category<select value={manualType} onChange={e=>setManualType(e.target.value)}>{["Supporting Document","Governing Document","Board Resolution","Board Meeting Minutes","Members' Meeting Minutes","Policy / Procedure","Official Letter","Certificate / Filing","Financial Record","Grant / Partnership Agreement","Other"].map(x=><option key={x}>{x}</option>)}</select></label>
+        <label>Reference number (optional)<input value={manualReference} onChange={e=>setManualReference(e.target.value)} placeholder="e.g. GDOF/GOV/2026/001"/></label>
+        <label>Document date<input type="date" value={manualDate} onChange={e=>setManualDate(e.target.value)}/></label>
+        <label className="gdof-manual-file">Choose PDF file<input type="file" accept="application/pdf,.pdf" onChange={e=>setManualFile(e.target.files?.[0]||null)}/>{manualFile&&<small>{manualFile.name} · {(manualFile.size/1024/1024).toFixed(2)} MB</small>}</label>
+      </div>
+      <div className="gdof-doc-actions"><button type="button" onClick={uploadManualDocument} disabled={manualUploading}>{manualUploading?"Uploading…":"Upload to Document Register"}</button></div>
+      <p className="admin-help">PDF only · Maximum 15 MB. The upload is saved as a draft and must be reviewed and approved through the normal register workflow.</p>
+    </section>
     <section className="gdof-register"><div className="gdof-register-head"><div><h2>Official Document Register</h2><p>Saved drafts, version history, approvals and final PDFs.</p></div><button type="button" className="admin-secondary" onClick={loadDocuments} disabled={loadingDocuments}>{loadingDocuments?"Refreshing…":"Refresh register"}</button></div>{loadingDocuments?<p>Loading documents…</p>:documents.length===0?<p className="admin-muted">No documents have been saved yet.</p>:<div className="admin-table-wrap"><table><thead><tr><th>Document</th><th>Versions</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead><tbody>{documents.map(doc=><tr key={doc.id}><td><b>{doc.title}</b><small>{doc.documentNumber}</small></td><td>{doc.versions?.length||0}</td><td>{String(doc.status||"DRAFT").replace("_"," ")}</td><td>{doc.updatedAt?new Date(doc.updatedAt).toLocaleString():"—"}</td><td><div className="gdof-register-actions"><button type="button" className="admin-secondary" onClick={()=>editDocument(doc)}>Open</button>{doc.versions?.[0]?.pdfKey&&<button type="button" className="admin-secondary" onClick={()=>downloadFile(doc,"pdf",doc.versions[0])}>PDF</button>}{doc.status==="PENDING_APPROVAL"&&<button type="button" onClick={()=>updateStatus(doc,"APPROVED")} disabled={saving}>Approve</button>}{doc.status==="PENDING_APPROVAL"&&<button type="button" className="admin-secondary" onClick={()=>updateStatus(doc,"RETURNED")} disabled={saving}>Return</button>}</div>{doc.versions?.length>1&&<details><summary>Version history</summary>{doc.versions.map(v=><div className="gdof-version" key={v.id}>v{v.version} · {new Date(v.createdAt).toLocaleString()} · {v.createdBy} <button type="button" className="admin-secondary" onClick={()=>downloadFile(doc,"html",v)}>Source</button>{v.pdfKey&&<button type="button" className="admin-secondary" onClick={()=>downloadFile(doc,"pdf",v)}>PDF</button>}</div>)}</details>}</td></tr>)}</tbody></table></div>}</section>
   </section>;
 }
